@@ -1,0 +1,9 @@
+bin/
+obj/
+.vs/
+*.user
+TestResults/
+var/
+dist/
+__pycache__/
+*.pyc

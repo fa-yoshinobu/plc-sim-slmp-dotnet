@@ -1,0 +1,199 @@
+<UserControl
+    x:Class="PlcSim.Slmp.Gui.Views.DashboardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:vm="clr-namespace:PlcSim.Slmp.Gui.ViewModels"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance vm:DashboardViewModel}">
+    <UserControl.Resources>
+        <Style x:Key="Fact" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="Padding" Value="14,10" />
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+            <DockPanel Margin="0,0,0,16">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding RunCommand}" Margin="0,0,6,0" MinWidth="72" Content="RUN" />
+                    <Button Style="{StaticResource OutlineButton}" Command="{Binding StopCommand}" Margin="0,0,6,0" MinWidth="72" Content="STOP" />
+                    <Button Style="{StaticResource OutlineButton}" Command="{Binding PauseCommand}" Margin="0,0,6,0" MinWidth="72" Content="PAUSE" />
+                    <Button Style="{StaticResource OutlineButton}" Command="{Binding ResetCommand}" Margin="0,0,6,0" Content="リセット" />
+                    <Button Style="{StaticResource OutlineButton}" Command="{Binding ToggleServerCommand}"><StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Power24" FontSize="18" Margin="0,0,6,0" /><TextBlock Text="サーバー起動/停止" VerticalAlignment="Center" /></StackPanel></Button>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="ダッシュボード" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="仮想 PLC の状態と通信の概要" Style="{StaticResource PageSubtitle}" />
+                </StackPanel>
+            </DockPanel>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- CPU 状態 -->
+                <Border Grid.Column="0" CornerRadius="10" Padding="20,18" BorderThickness="1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StateText}" Value="STOP">
+                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding StateText}" Value="PAUSE">
+                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel>
+                        <TextBlock Text="{Binding StateDetail}" Style="{StaticResource FieldLabel}" />
+                        <TextBlock Text="{Binding StateText}" FontFamily="{StaticResource MonoFont}" FontSize="44" FontWeight="SemiBold" Margin="0,8,0,10">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StateText}" Value="STOP">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StateText}" Value="PAUSE">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="自己診断エラー SD0 = " Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ErrorCodeText}" Style="{StaticResource Mono}" FontSize="14" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource TextButton}" Command="{Binding ClearErrorCommand}" Margin="8,0,0,0" Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" Content="解除" />
+                        </StackPanel>
+                        <TextBlock Text="リモートパスワード有効（接続ごとにロック）" Style="{StaticResource FieldLabel}" Margin="0,6,0,0"
+                                   Visibility="{Binding PasswordEnabled, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 概要 -->
+                <Border Grid.Column="2" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" CornerRadius="10"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" ClipToBounds="True">
+                    <UniformGrid Columns="3" Rows="2">
+                        <Border Style="{StaticResource Fact}">
+                            <StackPanel>
+                                <TextBlock Text="形名 / 形名コード" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Text="{Binding ModelText}" Style="{StaticResource FactValue}" />
+                                <TextBlock Text="{Binding ProfileText}" Style="{StaticResource FieldLabel}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Fact}">
+                            <StackPanel>
+                                <TextBlock Text="接続中クライアント" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Text="{Binding ClientCount}" Style="{StaticResource FactValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Fact}">
+                            <StackPanel>
+                                <TextBlock Text="要求数（累計）" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Text="{Binding TotalRequests}" Style="{StaticResource FactValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Fact}">
+                            <StackPanel>
+                                <TextBlock Text="エラー応答" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Text="{Binding ErrorResponses}" Style="{StaticResource FactValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Fact}">
+                            <StackPanel>
+                                <TextBlock Text="エラー注入" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Text="{Binding InjectionText}" Style="{StaticResource FactValue}" FontSize="14" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Fact}">
+                            <StackPanel>
+                                <TextBlock Text="実行中スクリプト" Style="{StaticResource FieldLabel}" />
+                                <TextBlock Text="{Binding ScriptText}" Style="{StaticResource FactValue}" FontSize="14" />
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+                </Border>
+            </Grid>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.2*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource Panel}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource FieldLabel}">
+                                <Run Text="現在" /> <Run Text="{Binding RateText, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" /> <Run Text="件/秒" />
+                            </TextBlock>
+                            <TextBlock Text="要求数 / 秒（直近 60 秒）" Style="{StaticResource SectionLabel}" />
+                        </DockPanel>
+                        <Viewbox Stretch="Fill" Height="110">
+                            <Canvas Width="600" Height="90">
+                                <Line X1="0" Y1="22" X2="600" Y2="22" Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" StrokeThickness="1" />
+                                <Line X1="0" Y1="45" X2="600" Y2="45" Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" StrokeThickness="1" />
+                                <Line X1="0" Y1="68" X2="600" Y2="68" Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" StrokeThickness="1" />
+                                <Polygon Points="{Binding SparkArea}" Fill="{DynamicResource AccentFillColorDefaultBrush}" Opacity="0.15" />
+                                <Polyline Points="{Binding SparkLine}" Stroke="{DynamicResource AccentFillColorDefaultBrush}" StrokeThickness="2" />
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Style="{StaticResource FieldLabel}">
+                            <Run Text="縦軸上限" /> <Run Text="{Binding SparkMax, Mode=OneWay}" /> <Run Text="件/秒" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource Panel}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="接続中" Style="{StaticResource SectionLabel}" />
+                        <TextBlock DockPanel.Dock="Top" Text="接続はありません" Margin="0,4">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource FieldLabel}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Sessions.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <ItemsControl ItemsSource="{Binding Sessions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:SessionRow}">
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="52" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="70" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource Chip}" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                            <TextBlock Text="{Binding Transport}" Style="{StaticResource ChipText}" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="{Binding Remote}" Style="{StaticResource Mono}" FontSize="14" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Requests, StringFormat={}{0:N0} 件}" Style="{StaticResource Mono}" FontSize="14" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="{Binding Monitor}" Style="{StaticResource Mono}" FontSize="14" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

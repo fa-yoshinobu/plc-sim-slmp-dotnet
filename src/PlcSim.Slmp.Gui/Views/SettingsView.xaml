@@ -1,0 +1,194 @@
+<UserControl
+    x:Class="PlcSim.Slmp.Gui.Views.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:vm="clr-namespace:PlcSim.Slmp.Gui.ViewModels"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance vm:SettingsViewModel}">
+    <UserControl.Resources>
+        <Style x:Key="Row" TargetType="Grid">
+            <Setter Property="Margin" Value="0,5" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="Width" Value="170" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <DockPanel Margin="0,0,0,12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+                <Button Style="{StaticResource TextButton}" Command="{Binding RevertCommand}" Margin="0,0,6,0" Content="元に戻す" />
+                <Button Style="{StaticResource PrimaryButton}" Command="{Binding ApplyCommand}" Margin="0,0,6,0" IsEnabled="{Binding Busy, Converter={StaticResource InverseBool}}"><StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Checkmark24" FontSize="18" Margin="0,0,6,0" /><TextBlock Text="適用" VerticalAlignment="Center" /></StackPanel></Button>
+                <Button Style="{StaticResource OutlineButton}" Command="{Binding SaveCommand}"><StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Save24" FontSize="18" Margin="0,0,6,0" /><TextBlock Text="設定ファイルに保存" VerticalAlignment="Center" /></StackPanel></Button>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="設定" Style="{StaticResource PageTitle}" />
+                <TextBlock Text="機種・待受・動作条件・HTTP API・Python・エラー注入。「適用」で仮想 PLC を作り直します（機種変更時はメモリを初期化）。" Style="{StaticResource PageSubtitle}" />
+            </StackPanel>
+        </DockPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="{Binding Message}" Margin="2,0,0,10" TextWrapping="Wrap" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                           Visibility="{Binding Message, Converter={StaticResource NotEmptyToVisibility}}" />
+                <WrapPanel>
+                    <!-- 機種 -->
+                    <Border Style="{StaticResource Panel}" Width="520" Margin="0,0,12,12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="機種" Style="{StaticResource SectionLabel}" />
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="プロファイル" Style="{StaticResource Label}" />
+                                    <ComboBox Width="300" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Profile}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ProfileOption}">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" />
+                                                    <TextBlock Text="{Binding Id}" Style="{StaticResource FieldLabel}" FontFamily="{StaticResource MonoFont}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="形名（0101 応答）" Style="{StaticResource Label}" />
+                                    <ui:TextBox Width="160" Text="{Binding ModelName}" PlaceholderText="既定" FontFamily="{StaticResource MonoFont}" />
+                                    <ui:TextBox Width="90" Text="{Binding ModelCode}" PlaceholderText="コード" FontFamily="{StaticResource MonoFont}" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding ModelHint}" Style="{StaticResource FieldLabel}" Margin="170,0,0,0" />
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="起動時の状態" Style="{StaticResource Label}" />
+                                    <ComboBox Width="120" ItemsSource="{Binding States}" SelectedItem="{Binding InitialState}" />
+                                </StackPanel>
+                            </Grid>
+                            <CheckBox Content="RUN 中の書込みを許可" IsChecked="{Binding RunWriteAllowed}" Margin="170,8,0,0" />
+                            <CheckBox Content="リモートリセットを許可" IsChecked="{Binding RemoteResetAllowed}" Margin="170,6,0,0" />
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="リモートパスワード" Style="{StaticResource Label}" />
+                                    <ui:TextBox Width="200" Text="{Binding RemotePassword}" PlaceholderText="空欄で無効" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 通信 -->
+                    <Border Style="{StaticResource Panel}" Width="520" Margin="0,0,12,12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="SLMP 待受・HTTP API・Python" Style="{StaticResource SectionLabel}" />
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="待受アドレス" Style="{StaticResource Label}" />
+                                    <ui:TextBox Width="200" Text="{Binding BindAddress}" FontFamily="{StaticResource MonoFont}" ToolTip="127.0.0.1 は自 PC のみ、0.0.0.0 で全インタフェース" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="TCP" Style="{StaticResource Label}" />
+                                    <CheckBox IsChecked="{Binding EnableTcp}" Content="有効" Margin="0,0,10,0" />
+                                    <ui:TextBox Width="100" Text="{Binding TcpPort}" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="UDP" Style="{StaticResource Label}" />
+                                    <CheckBox IsChecked="{Binding EnableUdp}" Content="有効" Margin="0,0,10,0" />
+                                    <ui:TextBox Width="100" Text="{Binding UdpPort}" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="交信データコード" Style="{StaticResource Label}" />
+                                    <ComboBox Width="300" ItemsSource="{Binding DataCodes}" SelectedItem="{Binding DataCode}" DisplayMemberPath="Name"
+                                              ToolTip="実機は設定と違うコードの要求に応答しません。実機に合わせるときはバイナリか ASCII を選びます。" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="HTTP API" Style="{StaticResource Label}" />
+                                    <CheckBox IsChecked="{Binding ApiEnabled}" Content="有効" Margin="0,0,10,0" />
+                                    <ui:TextBox Width="100" Text="{Binding ApiPort}" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Python 実行ファイル" Style="{StaticResource Label}" />
+                                    <ui:TextBox Width="300" Text="{Binding PythonExecutable}" FontFamily="{StaticResource MonoFont}" PlaceholderText="python" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 表示 -->
+                    <Border Style="{StaticResource Panel}" Width="1052" Margin="0,0,12,12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="表示（すぐに反映）" Style="{StaticResource SectionLabel}" />
+                            <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="テーマ" Style="{StaticResource Label}" />
+                                    <ComboBox Width="300" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" DisplayMemberPath="Name" />
+                                    <TextBlock Text="次回起動時も使うには「設定ファイルに保存」を押してください。" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- エラー注入 -->
+                    <Border Style="{StaticResource Panel}" Width="1052" Margin="0,0,12,12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="エラー注入（すぐに反映）" Style="{StaticResource SectionLabel}" />
+                            <WrapPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="コマンド(16進)" Style="{StaticResource FieldLabel}" />
+                                    <ui:TextBox Width="90" Text="{Binding InjCommand}" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="サブコマンド" Style="{StaticResource FieldLabel}" />
+                                    <ui:TextBox Width="90" Text="{Binding InjSubcommand}" PlaceholderText="全て" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="終了コード(16進)" Style="{StaticResource FieldLabel}" />
+                                    <ui:TextBox Width="100" Text="{Binding InjEndCode}" PlaceholderText="空欄=正常" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="遅延(ms)" Style="{StaticResource FieldLabel}" />
+                                    <ui:TextBox Width="80" Text="{Binding InjDelay}" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="回数" Style="{StaticResource FieldLabel}" />
+                                    <ui:TextBox Width="70" Text="{Binding InjCount}" PlaceholderText="毎回" FontFamily="{StaticResource MonoFont}" />
+                                </StackPanel>
+                                <CheckBox Content="無応答" IsChecked="{Binding InjDrop}" VerticalAlignment="Bottom" Margin="0,0,12,6" />
+                                <Button Style="{StaticResource OutlineButton}" Command="{Binding AddInjectionCommand}" VerticalAlignment="Bottom" Margin="0,0,6,0" Content="追加" />
+                                <Button Style="{StaticResource TextButton}" Command="{Binding ClearInjectionsCommand}" VerticalAlignment="Bottom" Content="全て削除" />
+                            </WrapPanel>
+                            <ItemsControl ItemsSource="{Binding Injections}" Margin="0,10,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:InjectionRow}">
+                                        <DockPanel Margin="0,3">
+                                            <Button Style="{StaticResource TextButton}" DockPanel.Dock="Right" Command="{Binding DataContext.RemoveInjectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Content="削除" />
+                                            <TextBlock Text="{Binding Text}" Style="{StaticResource Mono}" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="例: 0401 / C051 / 1 回 → 次の一括読出しだけ点数超過エラー。終了コード空欄＋遅延で応答遅れ、無応答でタイムアウトを再現します。" Style="{StaticResource FieldLabel}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

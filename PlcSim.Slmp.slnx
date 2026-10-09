@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PlcSim.Slmp.Core/PlcSim.Slmp.Core.csproj" />
+    <Project Path="src/PlcSim.Slmp.Gui/PlcSim.Slmp.Gui.csproj" />
+    <Project Path="src/PlcSim.Slmp.Host/PlcSim.Slmp.Host.csproj" />
+    <Project Path="src/PlcSim.Slmp.Scripting/PlcSim.Slmp.Scripting.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PlcSim.Slmp.Tests/PlcSim.Slmp.Tests.csproj" />
+  </Folder>
+</Solution>

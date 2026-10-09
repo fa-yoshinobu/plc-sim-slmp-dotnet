@@ -1,0 +1,102 @@
+<ui:FluentWindow
+    x:Class="PlcSim.Slmp.Gui.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:vm="clr-namespace:PlcSim.Slmp.Gui.ViewModels"
+    xmlns:views="clr-namespace:PlcSim.Slmp.Gui.Views"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance vm:MainViewModel}"
+    Title="{Binding Title}"
+    Icon="pack://application:,,,/Assets/PlcSim.ico"
+    Width="1440" Height="900" MinWidth="980" MinHeight="620"
+    WindowStartupLocation="CenterScreen"
+    ExtendsContentIntoTitleBar="True"
+    WindowBackdropType="None"
+    Background="{DynamicResource Dads.Background}"
+    FontSize="16"
+    Foreground="{DynamicResource Dads.Text}"
+    WindowCornerPreference="Round"
+    FontFamily="{StaticResource UiFont}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{Binding Title}">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/PlcSim.ico" Width="16" Height="16" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 左ナビ -->
+            <DockPanel Grid.Column="0" Margin="10,4,6,12">
+                <Border DockPanel.Dock="Bottom" Style="{StaticResource Panel}" Padding="12,10">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsServerRunning}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="SLMP サーバー" FontWeight="SemiBold" FontSize="13.5" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding EndpointText}" Style="{StaticResource FieldLabel}" Margin="16,2,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <Button DockPanel.Dock="Bottom" Style="{StaticResource TextButton}" Command="{Binding AboutCommand}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Info24" FontSize="18" Margin="0,0,12,0" />
+                        <TextBlock Text="バージョン情報" FontSize="13.5" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <ListBox ItemsSource="{Binding Navigation}" SelectedItem="{Binding SelectedNav}"
+                         ItemContainerStyle="{StaticResource NavItem}" Background="Transparent" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:NavItem}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="18" Margin="0,0,12,0" />
+                                <TextBlock Text="{Binding Title}" FontSize="13.5" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <!-- 各画面 -->
+            <Grid Grid.Column="1" Margin="8,4,16,16">
+                <views:DashboardView DataContext="{Binding Dashboard}"
+                                     Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EqualsToVisibility}, ConverterParameter=dash}" />
+                <views:MemoryView DataContext="{Binding Memory}"
+                                  Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EqualsToVisibility}, ConverterParameter=mem}" />
+                <views:LogView DataContext="{Binding Log}"
+                               Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EqualsToVisibility}, ConverterParameter=log}" />
+                <views:ScriptsView DataContext="{Binding Scripts}"
+                                   Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EqualsToVisibility}, ConverterParameter=script}" />
+                <views:DeviceRangeView DataContext="{Binding DeviceRange}"
+                                       Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EqualsToVisibility}, ConverterParameter=range}" />
+                <views:LabelsView DataContext="{Binding Labels}"
+                                  Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EqualsToVisibility}, ConverterParameter=label}" />
+                <views:SettingsView DataContext="{Binding Settings}"
+                                    Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EqualsToVisibility}, ConverterParameter=settings}" />
+            </Grid>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

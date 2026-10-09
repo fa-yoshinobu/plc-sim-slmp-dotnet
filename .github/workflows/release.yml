@@ -1,0 +1,49 @@
+name: Release
+
+# v で始まるタグ（例: v0.2.0）を push すると、1 ファイル exe（.NET ランタイム同梱）の配布 zip を作り、
+# GitHub Release に添付する。リリースノートは CHANGELOG.md の該当バージョンの節を使う。
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build, test and package
+        shell: cmd
+        run: build.bat
+
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $zip = "dist/PlcSim.Slmp-$tag-win-x64.zip"
+          Move-Item dist/PlcSim.Slmp-win-x64.zip $zip
+          # CHANGELOG.md の "## [x.y.z]" から次の "## [" までをリリースノートにする。
+          $lines = Get-Content CHANGELOG.md -Encoding utf8
+          $start = [Array]::FindIndex($lines, [Predicate[string]] { param($l) $l.StartsWith("## [$version]") })
+          if ($start -lt 0) { throw "CHANGELOG.md に ## [$version] がありません" }
+          $notes = $lines[($start + 1)..($lines.Length - 1)] | ForEach-Object -Begin { $stop = $false } -Process {
+              if ($_.StartsWith("## [") -or $_ -match '^\[.+\]: ') { $stop = $true }
+              if (-not $stop) { $_ }
+          }
+          ($notes -join "`n").Trim() | Set-Content release-notes.md -Encoding utf8
+          gh release create $tag $zip --title "PLC Sim $tag" --notes-file release-notes.md

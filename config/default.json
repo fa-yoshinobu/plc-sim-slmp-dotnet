@@ -1,0 +1,54 @@
+{
+  // SLMP 待受。実機 iQ-R の検査と同じ 1025 を既定にする。
+  "server": {
+    "bindAddress": "127.0.0.1",
+    "enableTcp": true,
+    "tcpPort": 1025,
+    "enableUdp": true,
+    "udpPort": 1025,
+    // 交信データコード: "Auto"（バイナリと ASCII の両方。PLC Sim 独自）/ "Binary" / "Ascii"。
+    // 実機は設定と違うコードの要求に応答しない。
+    "dataCode": "Auto"
+  },
+  "plc": {
+    // melsec:iq-r / melsec:iq-r:rj71en71 / melsec:qnudv / melsec:qnu /
+    // melsec:qcpu:qj71e71-100 / melsec:qnu:qj71e71-100 / melsec:qnudv:qj71e71-100 /
+    // melsec:lcpu / melsec:lcpu:lj71e71-100 / melsec:iq-f
+    "profile": "melsec:iq-r",
+    // 形名・点数を実機に合わせて上書きできる（省略時はプロファイル既定値）。
+    // "modelName": "R08CPU",
+    // "modelCode": 18433,
+    // "devicePoints": { "ZR": 4915200 },
+    // 装着ユニット（Un\G、16 進）とリンクダイレクトのネットワーク（Jn\）。番号は任意、各最大 4 個。
+    // U3E0〜U3E3（CPU バッファメモリ）は登録不要。
+    "units": [ "0" ],
+    "networks": [ 1 ],
+    "runWriteAllowed": true,
+    "remoteResetAllowed": true,
+    // リモートリセット後に応答しない時間（ミリ秒）。実機 iQ-R 系は約 22000。0 ならすぐ応答する。
+    "resetRestartMs": 0,
+    // パスワードを設定すると接続ごとにロック状態で始まる（例: "melsec"）。
+    "remotePassword": null,
+    "initialState": "Run"
+  },
+  // 外部スクリプト用 HTTP API（127.0.0.1 のみ）。
+  "api": {
+    "enabled": true,
+    "bindAddress": "127.0.0.1",
+    "port": 5080
+  },
+  "initialValues": [
+    { "address": "D0", "type": "U16", "values": [ 1, 2, 3 ] },
+    { "address": "D10", "type": "STRING", "values": [ "MELSEC" ] }
+  ],
+  // GUI の表示テーマ: "system"（Windows の設定に従う）/ "light" / "dark"。GUI の設定画面からも変更できる。
+  "gui": {
+    "theme": "system"
+  },
+  // Python スクリプト（HTTP API 経由で操作。python/plc_sim.py を使用）。
+  "pythonExecutable": "python",
+  // 起動時に実行するスクリプト（このファイルからの相対パス）。例: [ "../scripts/counter.py" ]
+  "scripts": [],
+  // エラー注入の初期ルール。例: { "command": 1025, "endCode": 49233, "remainingCount": 1 }
+  "errorInjection": []
+}

@@ -1,0 +1,80 @@
+<!--
+  ダーク配色（独自拡張）。DADS はダーク配色を定義していないため、
+  DADS のトークン（@digital-go-jp/design-tokens 2.0.1）から色を選び、
+  ライトと同じコントラスト基準（文字 4.5:1 以上、非テキスト 3:1 以上）を満たす組合せにした。
+  フォーカスリングは DADS の規定どおり黒 + Yellow-300 の二重のまま。
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 面 -->
+    <SolidColorBrush x:Key="Dads.Background" Color="#1A1A1A" />          <!-- solid-gray-900 -->
+    <SolidColorBrush x:Key="Dads.Surface" Color="#262626" />
+    <SolidColorBrush x:Key="Dads.SurfaceSubtle" Color="#333333" />       <!-- solid-gray-800 -->
+    <SolidColorBrush x:Key="Dads.TableHeader" Color="#333333" />
+    <SolidColorBrush x:Key="Dads.Border" Color="#4D4D4D" />              <!-- solid-gray-700 -->
+    <SolidColorBrush x:Key="Dads.BorderStrong" Color="#999999" />        <!-- solid-gray-400 -->
+    <SolidColorBrush x:Key="Dads.Divider" Color="#4D4D4D" />
+
+    <!-- 文字 -->
+    <SolidColorBrush x:Key="Dads.Text" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Dads.TextBody" Color="#F2F2F2" />            <!-- solid-gray-50 -->
+    <SolidColorBrush x:Key="Dads.TextSecondary" Color="#CCCCCC" />       <!-- solid-gray-200（10:1 on #262626） -->
+    <SolidColorBrush x:Key="Dads.TextMuted" Color="#B3B3B3" />           <!-- solid-gray-300 -->
+    <SolidColorBrush x:Key="Dads.TextDisabled" Color="#7F7F7F" />        <!-- solid-gray-500 -->
+
+    <!-- キーカラー（blue の明るい段階） -->
+    <SolidColorBrush x:Key="Dads.Accent" Color="#9DB7F9" />              <!-- key-300 -->
+    <SolidColorBrush x:Key="Dads.AccentHover" Color="#C5D7FB" />         <!-- key-200 -->
+    <SolidColorBrush x:Key="Dads.AccentPressed" Color="#D9E6FF" />       <!-- key-100 -->
+    <SolidColorBrush x:Key="Dads.AccentText" Color="#9DB7F9" />          <!-- key-300 -->
+    <SolidColorBrush x:Key="Dads.AccentSubtle" Color="#00118F" />        <!-- key-1000 -->
+    <SolidColorBrush x:Key="Dads.AccentSubtleHover" Color="#0017C1" />   <!-- key-900 -->
+    <SolidColorBrush x:Key="Dads.AccentSubtlePressed" Color="#0031D8" /> <!-- key-800 -->
+    <SolidColorBrush x:Key="Dads.OnAccent" Color="#000000" />
+    <SolidColorBrush x:Key="OnAccentText" Color="#000000" />
+
+    <!-- セマンティック -->
+    <SolidColorBrush x:Key="Dads.Success" Color="#51B883" />             <!-- green-400 -->
+    <SolidColorBrush x:Key="Dads.SuccessText" Color="#71C598" />         <!-- green-300 -->
+    <SolidColorBrush x:Key="Dads.SuccessSubtle" Color="#0C472A" />       <!-- green-1000 -->
+    <SolidColorBrush x:Key="Dads.Error" Color="#FF7171" />               <!-- red-400 -->
+    <SolidColorBrush x:Key="Dads.ErrorText" Color="#FF9696" />           <!-- red-300 -->
+    <SolidColorBrush x:Key="Dads.ErrorSubtle" Color="#620000" />         <!-- red-1200 -->
+    <SolidColorBrush x:Key="Dads.Warning" Color="#FFC700" />             <!-- yellow-400 -->
+    <SolidColorBrush x:Key="Dads.WarningText" Color="#FFD43D" />         <!-- yellow-300 -->
+    <SolidColorBrush x:Key="Dads.WarningSubtle" Color="#604B00" />       <!-- yellow-1200 -->
+    <SolidColorBrush x:Key="Dads.Highlight" Color="#6E5600" />           <!-- yellow-1100 -->
+    <SolidColorBrush x:Key="Dads.Mark" Color="#FF8D44" />                <!-- orange-400 -->
+
+    <!-- フォーカスリング（DADS の規定どおり） -->
+    <SolidColorBrush x:Key="Dads.FocusOuter" Color="#000000" />
+    <SolidColorBrush x:Key="Dads.FocusInner" Color="#FFD43D" />
+
+    <!-- 無効 -->
+    <SolidColorBrush x:Key="Dads.DisabledFill" Color="#4D4D4D" />
+    <SolidColorBrush x:Key="Dads.OnDisabled" Color="#999999" />
+
+    <!-- WPF-UI のキーを上書き -->
+    <SolidColorBrush x:Key="ApplicationBackgroundBrush" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#CCCCCC" />
+    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#B3B3B3" />
+    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#7F7F7F" />
+    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#9DB7F9" />
+    <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#9DB7F9" />
+    <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#000000" />
+    <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#262626" />
+    <SolidColorBrush x:Key="SolidBackgroundFillColorQuarternaryBrush" Color="#262626" />
+    <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#333333" />
+    <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="#4D4D4D" />
+    <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="#4D4D4D" />
+    <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#00118F" />
+    <SolidColorBrush x:Key="SystemFillColorSuccessBrush" Color="#71C598" />
+    <SolidColorBrush x:Key="SystemFillColorSuccessBackgroundBrush" Color="#0C472A" />
+    <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="#FF9696" />
+    <SolidColorBrush x:Key="SystemFillColorCriticalBackgroundBrush" Color="#620000" />
+    <SolidColorBrush x:Key="SystemFillColorCautionBrush" Color="#FFD43D" />
+    <SolidColorBrush x:Key="SystemFillColorCautionBackgroundBrush" Color="#6E5600" />
+</ResourceDictionary>
