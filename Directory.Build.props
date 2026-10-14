@@ -2,7 +2,7 @@
   <!-- 全プロジェクト共通の製品情報（バージョン情報ウィンドウ・exe のプロパティに表示） -->
   <PropertyGroup>
     <Product>PLC Sim (SLMP)</Product>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Company>FA Labo</Company>
     <Authors>FA Labo(fa_yoshinobu)</Authors>
     <Copyright>Copyright (c) 2026 FA Labo</Copyright>

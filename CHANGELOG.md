@@ -15,6 +15,8 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-15
+
 ### Fixed
 
 - GUI: メモリの数値入力ウィンドウが、ダブルクリック直後に閉じる問題を修正。
@@ -40,5 +42,6 @@
 
 最初の公開版です。実装済みの機能は [機能一覧](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/blob/main/docs/FEATURES.md) を参照してください。
 
-[Unreleased]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/tag/v0.1.0
