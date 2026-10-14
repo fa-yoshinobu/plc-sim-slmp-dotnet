@@ -92,16 +92,27 @@ public sealed class SimulatorRuntime : IAsyncDisposable
     public async Task RebuildAsync(SimulatorConfig config, bool keepMemory = true)
     {
         var wasRunning = IsRunning;
+        var apiUrl = ApiUrlOf(config);
+        var scriptsToRestart = Scripts.ApiUrl != apiUrl
+            ? Scripts.Scripts.Where(static s => s.Status == ScriptStatus.Running).ToArray()
+            : Array.Empty<PythonScript>();
+        foreach (var script in scriptsToRestart)
+            script.Stop();
         var snapshot = keepMemory ? MemorySnapshot.Capture(Plc) : null;
         await StopAsync().ConfigureAwait(false);
         config.BaseDirectory = Config.BaseDirectory;
         Config = config;
         Scripts.PythonExecutable = config.PythonExecutable;
-        Scripts.ApiUrl = ApiUrlOf(config);
+        Scripts.ApiUrl = apiUrl;
         Build(snapshot);
         Rebuilt?.Invoke();
         if (wasRunning)
             await StartAsync().ConfigureAwait(false);
+        if (IsRunning && apiUrl is not null)
+        {
+            foreach (var script in scriptsToRestart)
+                script.Start();
+        }
     }
 
     /// <summary>設定ファイルへ保存する。</summary>

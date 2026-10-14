@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text.Json;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -58,6 +59,11 @@ public sealed partial class LabelsViewModel : ObservableObject
     private static readonly string[] BasicTypes = ["BIT", "WORD", "DWORD", "INT", "DINT", "REAL", "LREAL", "STRING(32)", "WSTRING(32)"];
 
     private readonly SimulatorRuntime _runtime;
+    private string _loadedState = string.Empty;
+
+    private string EditState => JsonSerializer.Serialize(new { Globals, Structs });
+
+    public bool HasPendingChanges => EditState != _loadedState;
 
     public LabelsViewModel(SimulatorRuntime runtime)
     {
@@ -89,8 +95,13 @@ public sealed partial class LabelsViewModel : ObservableObject
     [ObservableProperty]
     private string _profileNote = string.Empty;
 
-    public void Load()
+    public void Load(bool preserveEdits = false)
     {
+        ProfileNote = _runtime.Plc.Profile.Features.Labels
+            ? string.Empty
+            : $"現在の機種（{_runtime.Plc.Profile.DisplayName}）はラベルのコマンドに対応していないため、SLMP からは読み書きできません（HTTP API・スクリプト・メモリビューアからは使えます）。";
+        if (preserveEdits && HasPendingChanges)
+            return;
         var defs = _runtime.Plc.Labels.Definitions;
         Structs.Clear();
         foreach (var (name, members) in defs.Structs)
@@ -99,10 +110,8 @@ public sealed partial class LabelsViewModel : ObservableObject
         foreach (var global in defs.Globals)
             Globals.Add(LabelRow.From(global));
         SelectedStruct = Structs.FirstOrDefault();
-        ProfileNote = _runtime.Plc.Profile.Features.Labels
-            ? string.Empty
-            : $"現在の機種（{_runtime.Plc.Profile.DisplayName}）はラベルのコマンドに対応していないため、SLMP からは読み書きできません（HTTP API・スクリプト・メモリビューアからは使えます）。";
         UpdateTypeChoices();
+        _loadedState = EditState;
     }
 
     [RelayCommand]
@@ -198,6 +207,7 @@ public sealed partial class LabelsViewModel : ObservableObject
             config.Plc.Labels = defs;
             config.ErrorInjection = _runtime.Engine.Injector.Rules.ToList();
             await _runtime.RebuildAsync(config, keepMemory: true);
+            Load();
             Message = $"適用しました（{DateTime.Now:HH:mm:ss}）。名前と型が変わらないラベルの値は引き継いでいます。設定ファイルに残すには「設定ファイルに保存」を押してください。";
         }
         catch (Exception ex)

@@ -248,4 +248,59 @@ public sealed class ScriptingAndApiTests
         listener.Stop();
         return port;
     }
+
+    [Fact]
+    public async Task RuntimeRestartsRunningScriptsWithNewApiUrlAndStopsThemWhenDisabled()
+    {
+        var directory = Directory.CreateTempSubdirectory("plc-sim-reconnect-");
+        var path = Path.Combine(directory.FullName, "connection.py");
+        var urlFile = Path.Combine(directory.FullName, "url.txt");
+        var config = new SimulatorConfig();
+        config.Server.TcpPort = 0;
+        config.Server.EnableUdp = false;
+        config.Api.Port = FreePort();
+        var runtime = new SimulatorRuntime(config, null);
+        try
+        {
+            await File.WriteAllTextAsync(path, $$"""
+                from pathlib import Path
+                from plc_sim import Plc
+                plc = Plc()
+                Path({{System.Text.Json.JsonSerializer.Serialize(urlFile)}}).write_text(plc.url)
+                @plc.every(0.02)
+                def tick():
+                    plc.inc("D100")
+                plc.run_forever()
+                """);
+            await runtime.StartAsync();
+            Assert.True(runtime.IsRunning, runtime.LastError);
+            var script = runtime.Scripts.Add(path);
+            var stoppedScript = runtime.Scripts.Add(Path.Combine(directory.FullName, "not-started.py"));
+            script.Start();
+            await WaitUntilAsync(() => Task.FromResult(runtime.Controller.GetWord("D100") >= 2));
+            var firstStart = script.StartedAt;
+            var newPort = FreePort();
+            Assert.NotEqual(config.Api.Port, newPort);
+            var next = new SimulatorConfig { Server = config.Server, Api = new() { Port = newPort } };
+            await runtime.RebuildAsync(next);
+            Assert.True(runtime.IsRunning, runtime.LastError);
+            await WaitUntilAsync(() => Task.FromResult(File.Exists(urlFile) &&
+                File.ReadAllText(urlFile) == $"http://127.0.0.1:{newPort}"));
+            Assert.NotEqual(firstStart, script.StartedAt);
+            Assert.Equal(ScriptStatus.Running, script.Status);
+            Assert.Equal(ScriptStatus.Stopped, stoppedScript.Status);
+            var before = runtime.Controller.GetWord("D100");
+            await WaitUntilAsync(() => Task.FromResult(runtime.Controller.GetWord("D100") > before));
+            var disabled = new SimulatorConfig { Server = config.Server, Api = new() { Enabled = false } };
+            await runtime.RebuildAsync(disabled);
+            Assert.True(runtime.IsRunning);
+            Assert.Null(runtime.Api);
+            Assert.Equal(ScriptStatus.Stopped, script.Status);
+        }
+        finally
+        {
+            await runtime.DisposeAsync();
+            directory.Delete(true);
+        }
+    }
 }

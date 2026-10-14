@@ -53,6 +53,7 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Cursor" Value="Hand" />
             <EventSetter Event="MouseLeftButtonDown" Handler="Cell_MouseLeftButtonDown" />
+            <EventSetter Event="MouseLeftButtonUp" Handler="Cell_MouseLeftButtonUp" />
             <Style.Triggers>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>

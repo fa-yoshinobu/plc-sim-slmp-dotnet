@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text.Json;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -75,6 +76,17 @@ public sealed partial class DeviceRangeViewModel : ObservableObject
     };
 
     private readonly SimulatorRuntime _runtime;
+    private string _loadedState = string.Empty;
+    private string _loadedProfile = string.Empty;
+
+    private string EditState => JsonSerializer.Serialize(new
+    {
+        Points = Rows.Select(static r => new { r.Family, r.PointsText }),
+        Units,
+        Networks,
+    });
+
+    public bool HasPendingChanges => EditState != _loadedState;
 
     public DeviceRangeViewModel(SimulatorRuntime runtime)
     {
@@ -114,8 +126,10 @@ public sealed partial class DeviceRangeViewModel : ObservableObject
     [ObservableProperty]
     private bool _busy;
 
-    public void Load()
+    public void Load(bool preserveEdits = false)
     {
+        if (preserveEdits && _loadedProfile == _runtime.Plc.Profile.Id && HasPendingChanges)
+            return;
         Units.Clear();
         foreach (var unit in _runtime.Plc.Settings.Units.OrderBy(static u => u))
             Units.Add($"U{unit:X}");
@@ -166,6 +180,8 @@ public sealed partial class DeviceRangeViewModel : ObservableObject
         }
 
         UpdateMemoryText();
+        _loadedState = EditState;
+        _loadedProfile = current.Id;
     }
 
     private bool CanAddUnit() => Units.Count < PlcSettings.MaxUnits && !string.IsNullOrWhiteSpace(NewUnit);
@@ -272,6 +288,7 @@ public sealed partial class DeviceRangeViewModel : ObservableObject
             config.Plc.Units = Units.Select(static u => u[1..]).ToList();
             config.Plc.Networks = Networks.Select(static n => int.Parse(n[1..], CultureInfo.InvariantCulture)).ToList();
             await _runtime.RebuildAsync(config, keepMemory: true);
+            Load();
             Message = $"適用しました（{DateTime.Now:HH:mm:ss}）。範囲外になった値は破棄しました。設定ファイルに残すには「保存」を押してください。";
         }
         catch (Exception ex)

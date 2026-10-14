@@ -18,6 +18,7 @@ public sealed partial class LogViewModel : ObservableObject
     private const int MaxRows = 2000;
     private readonly SimulatorRuntime _runtime;
     private FrameLogEntry? _lastSeen;
+    private readonly List<LogRow> _allRows = new();
 
     public LogViewModel(SimulatorRuntime runtime)
     {
@@ -50,7 +51,7 @@ public sealed partial class LogViewModel : ObservableObject
     {
         if (Paused)
             return;
-        var latest = _runtime.FrameLog.Latest(500);
+        var latest = _runtime.FrameLog.Latest(MaxRows);
         var start = 0;
         if (_lastSeen is not null)
         {
@@ -61,19 +62,26 @@ public sealed partial class LogViewModel : ObservableObject
         for (var i = start; i < latest.Count; i++)
         {
             var row = ToRow(latest[i]);
-            if (!Matches(row))
-                continue;
-            Rows.Insert(0, row);
+            _allRows.Insert(0, row);
+            if (Matches(row))
+                Rows.Insert(0, row);
         }
 
         if (latest.Count > 0)
             _lastSeen = latest[^1];
-        while (Rows.Count > MaxRows)
-            Rows.RemoveAt(Rows.Count - 1);
+        while (_allRows.Count > MaxRows)
+        {
+            var oldest = _allRows[^1];
+            _allRows.RemoveAt(_allRows.Count - 1);
+            Rows.Remove(oldest);
+            if (ReferenceEquals(Selected, oldest))
+                Selected = null;
+        }
     }
 
     public void Clear()
     {
+        _allRows.Clear();
         Rows.Clear();
         _lastSeen = null;
         Selected = null;
@@ -88,9 +96,11 @@ public sealed partial class LogViewModel : ObservableObject
 
     partial void OnFilterChanged(string value)
     {
-        Rows.Clear();
-        _lastSeen = null;
         Refresh();
+        Selected = null;
+        Rows.Clear();
+        foreach (var row in _allRows.Where(Matches))
+            Rows.Add(row);
     }
 
     partial void OnSelectedChanged(LogRow? value)

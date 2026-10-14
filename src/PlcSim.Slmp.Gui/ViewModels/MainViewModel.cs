@@ -1,10 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PlcSim.Slmp.Gui.Views;
 using PlcSim.Slmp.Scripting;
-using Wpf.Ui.Controls;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace PlcSim.Slmp.Gui.ViewModels;
 
@@ -26,6 +27,9 @@ public sealed partial class MainViewModel : ObservableObject
         DeviceRange = new DeviceRangeViewModel(runtime);
         Labels = new LabelsViewModel(runtime);
         Settings = new SettingsViewModel(runtime);
+        Settings.ConfirmProfileChange += () => !DeviceRange.HasPendingChanges ||
+            MessageBox.Show("機種を変更すると、デバイス範囲の未適用の編集は破棄されます。変更を続けますか？",
+                "未適用の編集", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
         Navigation = new ObservableCollection<NavItem>
         {
             new("dash", "ダッシュボード", SymbolRegular.Gauge24),
@@ -121,8 +125,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         Memory.Rebuild();
         Scripts.Reload();
-        DeviceRange.Load();
-        Labels.Load();
+        DeviceRange.Load(preserveEdits: true);
+        Labels.Load(preserveEdits: true);
         Settings.RefreshInjections();
         Log.Clear();
         UpdateTitle();

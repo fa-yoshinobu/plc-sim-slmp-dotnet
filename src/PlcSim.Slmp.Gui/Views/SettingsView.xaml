@@ -131,22 +131,23 @@
                         </StackPanel>
                     </Border>
 
+                </WrapPanel>
                     <!-- 表示 -->
-                    <Border Style="{StaticResource Panel}" Width="1052" Margin="0,0,12,12" Padding="18,14">
+                    <Border Style="{StaticResource Panel}" Margin="0,0,12,12" Padding="18,14">
                         <StackPanel>
                             <TextBlock Text="表示（すぐに反映）" Style="{StaticResource SectionLabel}" />
                             <Grid Style="{StaticResource Row}">
-                                <StackPanel Orientation="Horizontal">
+                                <WrapPanel>
                                     <TextBlock Text="テーマ" Style="{StaticResource Label}" />
                                     <ComboBox Width="300" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" DisplayMemberPath="Name" />
                                     <TextBlock Text="次回起動時も使うには「設定ファイルに保存」を押してください。" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="12,0,0,0" />
-                                </StackPanel>
+                                </WrapPanel>
                             </Grid>
                         </StackPanel>
                     </Border>
 
                     <!-- エラー注入 -->
-                    <Border Style="{StaticResource Panel}" Width="1052" Margin="0,0,12,12" Padding="18,14">
+                    <Border Style="{StaticResource Panel}" Margin="0,0,12,12" Padding="18,14">
                         <StackPanel>
                             <TextBlock Text="エラー注入（すぐに反映）" Style="{StaticResource SectionLabel}" />
                             <WrapPanel>
@@ -187,7 +188,6 @@
                             <TextBlock Text="例: 0401 / C051 / 1 回 → 次の一括読出しだけ点数超過エラー。終了コード空欄＋遅延で応答遅れ、無応答でタイムアウトを再現します。" Style="{StaticResource FieldLabel}" Margin="0,8,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
-                </WrapPanel>
             </StackPanel>
         </ScrollViewer>
     </Grid>

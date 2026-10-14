@@ -13,6 +13,7 @@ public partial class MemoryView : UserControl
 
     private const double RowHeight = 32;
     private MemoryCell? _editing;
+    private Border? _editTarget;
 
     public MemoryView()
     {
@@ -70,6 +71,7 @@ public partial class MemoryView : UserControl
 
     private void Cell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        _editTarget = null;
         if (sender is not Border { Tag: MemoryCell cell } border || Vm is not { } vm)
             return;
         vm.Select(cell);
@@ -85,8 +87,28 @@ public partial class MemoryView : UserControl
             return;
         }
 
-        _editing = cell;
-        EditTitle.Text = "新しい値（10進 / 0x16進 / 末尾 h で 16 進）";
+        // 表示行は再利用されるため、入力中に抽出結果が変わっても書込先を保持する。
+        _editing = new MemoryCell
+        {
+            Number = cell.Number,
+            Role = cell.Role,
+            LabelPath = cell.LabelPath,
+            Text = cell.Text,
+            Editable = cell.Editable,
+        };
+        _editTarget = border;
+    }
+
+    private void Cell_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_editTarget is not { } border || !ReferenceEquals(sender, border) || _editing is not { } cell || Vm is not { } vm)
+            return;
+        _editTarget = null;
+        e.Handled = true;
+        // ボタンを離してから開き、同じクリックの MouseUp で閉じるのを防ぐ。
+        EditTitle.Text = vm.Format == "asc" && vm.SelectedArea?.Kind == AreaKind.Word
+            ? "ASCII（2文字 / 制御文字を含む値は 0x16進）"
+            : "新しい値（10進 / 0x16進 / 末尾 h で 16 進）";
         EditBox.Text = vm.EditText(cell);
         EditError.Text = string.Empty;
         EditPopup.PlacementTarget = border;
@@ -117,6 +139,7 @@ public partial class MemoryView : UserControl
         }
 
         EditPopup.IsOpen = false;
+        _editing.Text = EditBox.Text;
         vm.Select(_editing);
     }
 }

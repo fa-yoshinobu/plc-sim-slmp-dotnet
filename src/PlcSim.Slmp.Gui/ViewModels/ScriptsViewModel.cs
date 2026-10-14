@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PlcSim.Slmp.Scripting;
@@ -47,6 +48,7 @@ public sealed partial class ScriptRow : ObservableObject
 /// </summary>
 public sealed partial class ScriptsViewModel : ObservableObject
 {
+    private const int MaxLogCharacters = 60000;
     private const string Template = """
         # PLC Sim (SLMP)用 Python スクリプト
         # plc_sim は python フォルダにあり、GUI から実行すると自動で読み込まれる。
@@ -73,14 +75,23 @@ public sealed partial class ScriptsViewModel : ObservableObject
     private readonly SimulatorRuntime _runtime;
     private readonly StringBuilder _pendingLog = new();
     private bool _samplesAdded;
+    private readonly Dictionary<string, string> _drafts = new(StringComparer.OrdinalIgnoreCase);
 
     public ScriptsViewModel(SimulatorRuntime runtime)
     {
         _runtime = runtime;
         runtime.Scripts.Log += message =>
         {
+            var line = $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}";
+            if (line.Length > MaxLogCharacters)
+                line = line[^MaxLogCharacters..];
             lock (_pendingLog)
-                _pendingLog.AppendLine($"{DateTime.Now:HH:mm:ss.fff} {message}");
+            {
+                var overflow = _pendingLog.Length + line.Length - MaxLogCharacters;
+                if (overflow > 0)
+                    _pendingLog.Remove(0, overflow);
+                _pendingLog.Append(line);
+            }
         };
     }
 
@@ -147,22 +158,49 @@ public sealed partial class ScriptsViewModel : ObservableObject
         if (pending.Length > 0)
         {
             var text = LogText + pending;
-            LogText = text.Length > 60000 ? text[^60000..] : text;
+            LogText = text.Length > MaxLogCharacters ? text[^MaxLogCharacters..] : text;
         }
     }
 
     partial void OnSelectedChanged(ScriptRow? value)
     {
-        var code = value is not null && File.Exists(value.Path) ? File.ReadAllText(value.Path) : string.Empty;
+        var dirty = value is not null && _drafts.ContainsKey(value.Path);
+        var code = dirty ? _drafts[value!.Path]
+            : value is not null && File.Exists(value.Path) ? File.ReadAllText(value.Path) : string.Empty;
         Code = code;
-        IsDirty = false;
+        IsDirty = dirty;
         CodeReplaced?.Invoke(code);
     }
 
     public void EditorChanged(string text)
     {
         Code = text;
-        IsDirty = true;
+        IsDirty = Selected is not null;
+        if (Selected is not null)
+            _drafts[Selected.Path] = text;
+    }
+
+    public bool ConfirmClose()
+    {
+        if (_drafts.Count == 0)
+            return true;
+        var answer = MessageBox.Show("未保存のスクリプトがあります。すべて保存して終了しますか？",
+            "スクリプトの保存", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes)
+            return answer == MessageBoxResult.No;
+        try
+        {
+            foreach (var (path, code) in _drafts)
+                File.WriteAllText(path, code, new UTF8Encoding(false));
+            _drafts.Clear();
+            IsDirty = false;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(ex.Message, "保存できません", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
     }
 
     [RelayCommand]
@@ -194,12 +232,24 @@ public sealed partial class ScriptsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Save()
+    private void Save() => SaveSelected();
+
+    private bool SaveSelected()
     {
         if (Selected is null)
-            return;
-        File.WriteAllText(Selected.Path, Code, new UTF8Encoding(false));
-        IsDirty = false;
+            return false;
+        try
+        {
+            File.WriteAllText(Selected.Path, Code, new UTF8Encoding(false));
+            _drafts.Remove(Selected.Path);
+            IsDirty = false;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Hint = $"保存できません: {ex.Message}";
+            return false;
+        }
     }
 
     [RelayCommand]
@@ -207,8 +257,8 @@ public sealed partial class ScriptsViewModel : ObservableObject
     {
         if (Selected is null)
             return;
-        if (IsDirty)
-            Save();
+        if (IsDirty && !SaveSelected())
+            return;
         Selected.Script.Start();
         Selected.Update();
     }
@@ -230,7 +280,12 @@ public sealed partial class ScriptsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ClearLog() => LogText = string.Empty;
+    private void ClearLog()
+    {
+        lock (_pendingLog)
+            _pendingLog.Clear();
+        LogText = string.Empty;
+    }
 
     private void AddAndSelect(string path)
     {

@@ -23,6 +23,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly SimulatorRuntime _runtime;
 
+    public event Func<bool>? ConfirmProfileChange;
+
     public SettingsViewModel(SimulatorRuntime runtime)
     {
         _runtime = runtime;
@@ -124,6 +126,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             var config = ConfigEditing.Clone(_runtime.Config);
             var profileChanged = config.Plc.Profile != Profile!.Id;
+            if (profileChanged && ConfirmProfileChange?.Invoke() == false)
+                return;
             config.Plc.Profile = Profile.Id;
             if (profileChanged)
                 config.Plc.DevicePoints.Clear();

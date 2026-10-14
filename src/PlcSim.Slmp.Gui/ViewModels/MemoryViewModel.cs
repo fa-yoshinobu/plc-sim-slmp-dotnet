@@ -47,6 +47,8 @@ public sealed partial class MemoryViewModel : ObservableObject
     private List<int>? _nonZeroRows;
     private string _recentSignature = string.Empty;
     private bool _suspend;
+    private PlcModel? _observedPlc;
+    private int _nonZeroDirty = 1;
 
     public MemoryViewModel(SimulatorRuntime runtime)
     {
@@ -155,6 +157,17 @@ public sealed partial class MemoryViewModel : ObservableObject
     /// <summary>プロファイル変更・再構築後に領域一覧を作り直す。</summary>
     public void Rebuild()
     {
+        if (_observedPlc is { } oldPlc)
+        {
+            oldPlc.Memory.Changed -= OnMemoryChanged;
+            oldPlc.BufferChanged -= OnMemoryChanged;
+            oldPlc.Labels.Changed -= OnLabelChanged;
+        }
+        _observedPlc = _runtime.Plc;
+        _observedPlc.Memory.Changed += OnMemoryChanged;
+        _observedPlc.BufferChanged += OnMemoryChanged;
+        _observedPlc.Labels.Changed += OnLabelChanged;
+        Interlocked.Exchange(ref _nonZeroDirty, 1);
         RefreshChoices();
         var previous = SelectedArea?.Key ?? "D";
         Areas.Clear();
@@ -163,6 +176,10 @@ public sealed partial class MemoryViewModel : ObservableObject
         OnPropertyChanged(nameof(FilteredAreas));
         SelectedArea = Areas.FirstOrDefault(a => a.Key == previous) ?? Areas.FirstOrDefault();
     }
+
+    private void OnMemoryChanged(MemoryChange change) => Interlocked.Exchange(ref _nonZeroDirty, 1);
+
+    private void OnLabelChanged(string path, string source) => Interlocked.Exchange(ref _nonZeroDirty, 1);
 
     /// <summary>領域キーと番号を指定して表示する（直近アクセス・他画面から）。</summary>
     public void JumpTo(string areaKey, uint number)
@@ -367,13 +384,23 @@ public sealed partial class MemoryViewModel : ObservableObject
             }
             else if (area.Key == "自局")
             {
+                ushort[] values;
+                if (Format is "u32" or "f32")
+                {
+                    var value = Format == "f32"
+                        ? BitConverter.SingleToUInt32Bits(float.Parse(input!, CultureInfo.InvariantCulture))
+                        : ParseDWord(input!);
+                    values = [(ushort)value, (ushort)(value >> 16)];
+                }
+                else
+                    values = [Format == "asc" ? ParseAsciiWord(input!) : ParseWord(input!, Format == "s16")];
                 lock (_runtime.Plc.SyncRoot)
-                    _runtime.Plc.Buffers.OwnMemory.Write(cell.Number, new[] { (ushort)ParseInteger(input!) });
-                _runtime.Plc.RaiseBufferChanged(new MemoryChange("自局", cell.Number, 1, "GUI", DateTime.Now));
+                    _runtime.Plc.Buffers.OwnMemory.Write(cell.Number, values);
+                _runtime.Plc.RaiseBufferChanged(new MemoryChange("自局", cell.Number, values.Length, "GUI", DateTime.Now));
             }
             else if (area.Kind is AreaKind.LongTimer or AreaKind.LongCounter or AreaKind.DoubleWord && cell.Role == "value")
             {
-                controller.SetDWord(address, unchecked((uint)ParseInteger(input!)), "GUI");
+                controller.SetDWord(address, ParseDWord(input!), "GUI");
             }
             else if (Format == "f32" && area.Kind == AreaKind.Word)
             {
@@ -381,16 +408,15 @@ public sealed partial class MemoryViewModel : ObservableObject
             }
             else if (Format == "u32" && area.Kind == AreaKind.Word)
             {
-                controller.SetDWord(address, unchecked((uint)ParseInteger(input!)), "GUI");
+                controller.SetDWord(address, ParseDWord(input!), "GUI");
             }
             else if (Format == "asc" && area.Kind == AreaKind.Word)
             {
-                var bytes = Encoding.ASCII.GetBytes((input ?? string.Empty).PadRight(2, '\0')[..2]);
-                controller.SetWord(address, (ushort)(bytes[0] | (bytes[1] << 8)), "GUI");
+                controller.SetWord(address, ParseAsciiWord(input ?? string.Empty), "GUI");
             }
             else
             {
-                controller.SetWord(address, unchecked((ushort)ParseInteger(input!)), "GUI");
+                controller.SetWord(address, ParseWord(input!, Format == "s16" && area.Kind == AreaKind.Word), "GUI");
             }
 
             Refresh();
@@ -403,7 +429,18 @@ public sealed partial class MemoryViewModel : ObservableObject
     }
 
     /// <summary>入力欄の初期値。</summary>
-    public string EditText(MemoryCell cell) => cell.Text;
+    public string EditText(MemoryCell cell)
+    {
+        if (Format == "hex" && SelectedArea?.Kind is AreaKind.Word or AreaKind.DoubleWord)
+            return "0x" + cell.Text;
+        if (Format == "asc" && SelectedArea is { Kind: AreaKind.Word } area && cell.Text.Contains('·'))
+        {
+            // 制御文字の表示用記号を実際の文字として書き戻さない。
+            lock (_runtime.Plc.SyncRoot)
+                return $"0x{ReadWords(area, cell.Number, 1)[0]:X4}";
+        }
+        return cell.Text;
+    }
 
     [RelayCommand]
     private void ExportCsv()
@@ -432,14 +469,23 @@ public sealed partial class MemoryViewModel : ObservableObject
         var area = SelectedArea;
         if (area is null || _suspend)
             return;
-        MaxTopRow = Math.Max(0, TotalRows - VisibleRows);
-        var top = (long)Math.Clamp(TopRow, 0, MaxTopRow);
+        long top = 0;
         var recent = RecentWrites(area);
         try
         {
             lock (_runtime.Plc.SyncRoot)
             {
                 _runtime.Plc.RefreshSpecialDevices();
+                if (NonZeroOnly && (Interlocked.Exchange(ref _nonZeroDirty, 0) != 0 || area.Key is "SD" or "SM"))
+                    ComputeNonZeroRows();
+                MaxTopRow = Math.Max(0, TotalRows - VisibleRows);
+                top = (long)Math.Clamp(TopRow, 0, MaxTopRow);
+                if (TopRow != top)
+                {
+                    _suspend = true;
+                    TopRow = top;
+                    _suspend = false;
+                }
                 for (var i = 0; i < Rows.Count; i++)
                 {
                     var rowIndex = top + i;
@@ -553,7 +599,8 @@ public sealed partial class MemoryViewModel : ObservableObject
                         var cell = row.Cells[i];
                         cell.IsBit = false;
                         cell.Number = start + (uint)i;
-                        cell.Editable = i < count && !area.ReadOnly;
+                        cell.Editable = i < count && !area.ReadOnly &&
+                            (Format is not ("u32" or "f32") || (i % 2 == 0 && i + 1 < count));
                         cell.Text = i < count ? FormatWord(words, i) : string.Empty;
                         cell.IsRecent = i < count && IsRecent(cell.Number);
                         hasValue |= i < count && words[i] != 0;
@@ -672,7 +719,7 @@ public sealed partial class MemoryViewModel : ObservableObject
                 if (i % 2 == 1 || i + 1 >= words.Length)
                     return string.Empty;
                 var d = (uint)(v | (words[i + 1] << 16));
-                return Format == "u32" ? d.ToString() : BitConverter.Int32BitsToSingle((int)d).ToString("G6", CultureInfo.InvariantCulture);
+                return Format == "u32" ? d.ToString() : BitConverter.Int32BitsToSingle((int)d).ToString("R", CultureInfo.InvariantCulture);
             default:
                 return v.ToString();
         }
@@ -1094,9 +1141,9 @@ public sealed partial class MemoryViewModel : ObservableObject
             "INT" => BinaryPrimitives.ReadInt16LittleEndian(d).ToString(),
             "DWORD" => BinaryPrimitives.ReadUInt32LittleEndian(d).ToString(),
             "DINT" => BinaryPrimitives.ReadInt32LittleEndian(d).ToString(),
-            "REAL" or "FLOAT" => BinaryPrimitives.ReadSingleLittleEndian(d).ToString("G6", CultureInfo.InvariantCulture),
-            "LREAL" or "DOUBLE" => BinaryPrimitives.ReadDoubleLittleEndian(d).ToString("G10", CultureInfo.InvariantCulture),
-            _ => Encoding.ASCII.GetString(d).TrimEnd('\0'),
+            "REAL" or "FLOAT" => BinaryPrimitives.ReadSingleLittleEndian(d).ToString("R", CultureInfo.InvariantCulture),
+            "LREAL" or "DOUBLE" => BinaryPrimitives.ReadDoubleLittleEndian(d).ToString("R", CultureInfo.InvariantCulture),
+            _ => (label.Type.StartsWith("WSTRING(", StringComparison.OrdinalIgnoreCase) ? Encoding.Unicode : Encoding.ASCII).GetString(d).TrimEnd('\0'),
         };
     }
 
@@ -1112,11 +1159,11 @@ public sealed partial class MemoryViewModel : ObservableObject
                 break;
             case "WORD":
             case "INT":
-                BinaryPrimitives.WriteUInt16LittleEndian(data, unchecked((ushort)ParseInteger(input)));
+                BinaryPrimitives.WriteUInt16LittleEndian(data, ParseWord(input, label.Type == "INT"));
                 break;
             case "DWORD":
             case "DINT":
-                BinaryPrimitives.WriteUInt32LittleEndian(data, unchecked((uint)ParseInteger(input)));
+                BinaryPrimitives.WriteUInt32LittleEndian(data, ParseDWord(input, label.Type == "DINT"));
                 break;
             case "REAL":
             case "FLOAT":
@@ -1127,20 +1174,51 @@ public sealed partial class MemoryViewModel : ObservableObject
                 BinaryPrimitives.WriteDoubleLittleEndian(data, double.Parse(input, CultureInfo.InvariantCulture));
                 break;
             default:
-                Encoding.ASCII.GetBytes(input).AsSpan(0, Math.Min(input.Length, data.Length - 1)).CopyTo(data);
+                var wide = label.Type.StartsWith("WSTRING(", StringComparison.OrdinalIgnoreCase);
+                var encoding = wide ? Encoding.Unicode : Encoding.ASCII;
+                encoding.GetEncoder().Convert(input.AsSpan(), data.AsSpan(0, data.Length - (wide ? 2 : 1)),
+                    true, out _, out _, out _);
                 break;
         }
 
         _runtime.Controller.WriteLabel(path, data, "GUI");
     }
 
-    private static long ParseInteger(string text)
+    private static ushort ParseWord(string text, bool signed = false)
+        => unchecked((ushort)ParseInteger(text, signed ? short.MinValue : 0, signed ? short.MaxValue : ushort.MaxValue));
+
+    private static ushort ParseAsciiWord(string text)
+    {
+        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            return ParseWord(text);
+        var bytes = Encoding.ASCII.GetBytes(text.PadRight(2, '\0')[..2]);
+        return (ushort)(bytes[0] | (bytes[1] << 8));
+    }
+
+    private static uint ParseDWord(string text, bool signed = false)
+        => unchecked((uint)ParseInteger(text, signed ? int.MinValue : 0, signed ? int.MaxValue : uint.MaxValue));
+
+    private static long ParseInteger(string text, long minimum, long maximum)
     {
         text = text.Trim().Replace(",", string.Empty);
+        var hex = true;
+        long value;
         if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            return long.Parse(text[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-        if (text.EndsWith('h') || text.EndsWith('H'))
-            return long.Parse(text[..^1], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-        return long.Parse(text, NumberStyles.Integer, CultureInfo.InvariantCulture);
+            value = long.Parse(text[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        else if (text.EndsWith('h') || text.EndsWith('H'))
+            value = long.Parse(text[..^1], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        else
+        {
+            hex = false;
+            value = long.Parse(text, NumberStyles.Integer, CultureInfo.InvariantCulture);
+        }
+        if (hex && minimum < 0)
+        {
+            minimum = 0;
+            maximum = maximum * 2 + 1;
+        }
+        if (value < minimum || value > maximum)
+            throw new OverflowException($"値は {minimum}〜{maximum} の範囲で入力してください。");
+        return value;
     }
 }

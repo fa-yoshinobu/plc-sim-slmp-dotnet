@@ -37,7 +37,7 @@ dotnet build PlcSim.Slmp.slnx -c %CONFIG% --no-restore || goto :fail
 
 if "%RUN_TEST%"=="1" (
     echo === テスト ===
-    dotnet test tests\PlcSim.Slmp.Tests -c %CONFIG% --no-build || goto :fail
+    dotnet test PlcSim.Slmp.slnx -c %CONFIG% --no-build || goto :fail
 ) else (
     echo === テスト省略 ===
 )
@@ -101,7 +101,7 @@ dotnet build PlcSim.Slmp.slnx -c %CONFIG% --no-restore || goto :fail
 
 if "%RUN_TEST%"=="1" (
     echo === テスト ===
-    dotnet test tests\PlcSim.Slmp.Tests -c %CONFIG% --no-build || goto :fail
+    dotnet test PlcSim.Slmp.slnx -c %CONFIG% --no-build || goto :fail
 ) else (
     echo === テスト省略 ===
 )

@@ -6,6 +6,7 @@
     <Project Path="src/PlcSim.Slmp.Scripting/PlcSim.Slmp.Scripting.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/PlcSim.Slmp.Gui.Tests/PlcSim.Slmp.Gui.Tests.csproj" />
     <Project Path="tests/PlcSim.Slmp.Tests/PlcSim.Slmp.Tests.csproj" />
   </Folder>
 </Solution>
