@@ -15,6 +15,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Standardized fixed-name Windows ZIP assets, ZIP SHA-256 checksums and English release notes.
+
+### Fixed
+
+- Unified VirusTotal completion checks and preserved unrelated release notes during rescans.
+
 ## [0.1.1] - 2026-10-15
 
 ### Fixed
