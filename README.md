@@ -189,9 +189,9 @@ GUI 版にも起動引数があります: `--config`、`--theme light|dark`、`-
 
 [MIT License](LICENSE)
 
-## Release distribution (next release)
+## Release distribution
 
-The fixed-name ZIP and checksum links below become available with the next standard release. Existing release assets and the download links above remain unchanged.
+The fixed-name ZIP and checksum links below are available for the current release. Older releases retain their original assets.
 
 - [Latest Windows x64 ZIP](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/latest/download/PlcSim.Slmp-win-x64.zip)
 - [ZIP SHA-256 checksum](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/latest/download/PlcSim.Slmp-win-x64.zip.sha256)
