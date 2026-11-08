@@ -3,7 +3,7 @@ rem PLC Sim (SLMP) ビルド
 rem   build.bat                 テスト実行後、GUI・コンソールをそれぞれ 1 ファイルの exe（.NET ランタイム同梱）で dist\PlcSim.Slmp に発行
 rem   build.bat notest          テストを省略
 rem   build.bat folder          1 ファイルにせず、gui\・host\ フォルダに exe と DLL を並べて発行
-rem   build.bat framework       .NET ランタイムを同梱しない（配布先に .NET 8 Desktop Runtime と ASP.NET Core Runtime が必要）
+rem   build.bat framework       .NET ランタイムを同梱しない（配布先に .NET 10 Desktop Runtime と ASP.NET Core Runtime が必要）
 rem   発行後、配布用の dist\PlcSim.Slmp-win-x64.zip を作る（展開すると PlcSim.Slmp フォルダに exe・config・python・scripts が入る）
 rem   引数は組み合わせ可（例: build.bat notest folder framework）
 chcp 65001 >nul
@@ -25,7 +25,7 @@ set ZIP=%~dp0dist\PlcSim.Slmp-win-x64.zip
 
 where dotnet >nul 2>nul
 if errorlevel 1 (
-    echo [エラー] dotnet が見つかりません。.NET 8 SDK 以降をインストールしてください。
+    echo [エラー] dotnet が見つかりません。.NET 10 SDK 以降をインストールしてください。
     exit /b 1
 )
 

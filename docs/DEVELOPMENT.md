@@ -18,7 +18,7 @@
 
 ## ビルドとテスト
 
-.NET 8 SDK が必要です。
+.NET 10 SDK が必要です。
 
 ```powershell
 dotnet run --project src/PlcSim.Slmp.Gui
