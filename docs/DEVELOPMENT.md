@@ -30,13 +30,13 @@ dotnet test
 ## 配布版の作成
 
 ```bat
-build.bat              :: テスト後、1 ファイル exe（.NET ランタイム同梱）で dist\PlcSim.Slmp に発行
+build.bat              :: テスト後、1 ファイル exe（.NET ランタイム同梱）で artifacts\release に発行
 build.bat folder       :: 1 ファイルにせず gui\・host\ に exe と DLL を並べる
 build.bat framework    :: .NET ランタイムを同梱しない
 build.bat notest       :: テストを省略
 ```
 
-いずれも `dist\PlcSim.Slmp-win-x64.zip` を作ります。
+いずれも `artifacts\release\PlcSim.Slmp-win-x64.zip` を作ります。
 
 ## リリース
 
@@ -47,3 +47,5 @@ build.bat notest       :: テストを省略
 ## 画面デザイン
 
 [デジタル庁デザインシステム（DADS）](https://design.digital.go.jp/dads/)に合わせています。配色は DADS のデザイントークン（`@digital-go-jp/design-tokens` 2.0.1、MIT License、© デジタル庁）の値です。ダーク配色は DADS に定義がないため、同じコントラスト基準で独自に組み合わせています。配色は `src/PlcSim.Slmp.Gui/Themes/Dads.Light.xaml` / `Dads.Dark.xaml`、部品のスタイルは `Themes/Styles.xaml` にあります。
+
+配布ZIPとその `.zip.sha256` も `artifacts/release/` に作成します。ZIPには必要な配布ファイルだけを含め、既存ZIP・チェックサム・リリース本文は含めません。旧出力フォルダは自動削除しません。

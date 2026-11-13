@@ -15,6 +15,16 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Aligned local and CI release output at `artifacts/release/`, with a fixed-name distribution ZIP and UTF-8/LF SHA-256 checksum.
+
+### Fixed
+
+- Reject incomplete VirusTotal responses without a matching API-provided executable SHA-256.
+
+- Stop failed builds immediately instead of entering the duplicated fallback build; keep release metadata and stale content out of distribution ZIPs.
+
 ## [0.1.2] - 2026-10-27
 
 ### Changed

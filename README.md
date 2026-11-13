@@ -22,7 +22,7 @@
 
 ## はじめかた
 
-1. [Releases](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases) から `PlcSim.Slmp-vX.Y.Z-win-x64.zip` をダウンロードし、好きな場所に展開します。
+1. [Releases](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases) から `PlcSim.Slmp-win-x64.zip` をダウンロードし、好きな場所に展開します。
 2. `PlcSim.Slmp.Gui.exe` を起動します。起動するとすぐ SLMP サーバーが動き始めます。
 3. 通信したいアプリから次の宛先に接続します。
 
@@ -204,3 +204,5 @@ Windows x64. The .NET runtime is included.
 Release notes and VirusTotal scan messages are in English. Existing project documents may keep their current language.
 
 Maintainers: update the English Changes section in `.github/release-notes.md` from the relevant CHANGELOG entries before releasing. The release workflow publishes the ZIP and checksum, then scans the actual published executables. Use the `Scan release with VirusTotal` workflow with a release tag to retry an incomplete scan. See the [shared release standard](https://github.com/fa-yoshinobu/release_standard).
+
+ローカルの配布EXEは `artifacts/release/PlcSim.Slmp.Gui.exe` です。同じフォルダーへ配布ZIPとSHA-256を作成します。
