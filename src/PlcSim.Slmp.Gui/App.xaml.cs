@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using PlcSim.Slmp.Core.Config;
+using PlcSim.Slmp.Core.Diagnostics;
 using PlcSim.Slmp.Gui.ViewModels;
 using PlcSim.Slmp.Scripting;
 using Wpf.Ui.Appearance;
@@ -18,6 +19,7 @@ public partial class App : Application
         {
             ReportCrash(args.Exception);
             args.Handled = true;
+            if (MainWindow is null) Shutdown(1);
         };
         AppDomain.CurrentDomain.UnhandledException += (_, args) => ReportCrash(args.ExceptionObject as Exception);
         ApplicationThemeManager.Changed += (theme, _) => Dispatcher.Invoke(() => ThemeService.ApplyDadsPalette(theme));
@@ -27,14 +29,16 @@ public partial class App : Application
         try
         {
             config = configPath is not null ? SimulatorConfig.Load(configPath) : new SimulatorConfig();
+            _runtime = new SimulatorRuntime(config, configPath);
         }
         catch (Exception ex)
         {
+            DiagnosticLog.Default.Write($"Configuration failed: {configPath}", ex);
             MessageBox.Show($"設定ファイルを読めません: {configPath}\n{ex.Message}\n既定設定で起動します。", "PLC Sim (SLMP)", MessageBoxButton.OK, MessageBoxImage.Warning);
             config = new SimulatorConfig();
+            _runtime = new SimulatorRuntime(config, configPath);
         }
 
-        _runtime = new SimulatorRuntime(config, configPath);
         var main = new MainViewModel(_runtime);
         if (ArgValue(e.Args, "--page") is { } page && main.Navigation.FirstOrDefault(n => n.Key == page) is { } nav)
             main.SelectedNav = nav;
@@ -62,17 +66,11 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    /// <summary>未処理例外を %TEMP%\plc_sim_gui_error.log に記録して表示する。</summary>
+    /// <summary>未処理例外を共通の診断ログに記録して表示する。</summary>
     private static void ReportCrash(Exception? ex)
     {
-        var path = Path.Combine(Path.GetTempPath(), "plc_sim_gui_error.log");
-        try
-        {
-            File.AppendAllText(path, $"{DateTime.Now:O}{Environment.NewLine}{ex}{Environment.NewLine}{Environment.NewLine}");
-        }
-        catch (IOException)
-        {
-        }
+        var path = DiagnosticLog.Default.DirectoryPath;
+        DiagnosticLog.Default.Write("Unhandled GUI exception", ex);
 
         MessageBox.Show($"予期しないエラーが発生しました。\n{ex?.Message}\n\n詳細: {path}", "PLC Sim (SLMP)", MessageBoxButton.OK, MessageBoxImage.Error);
     }

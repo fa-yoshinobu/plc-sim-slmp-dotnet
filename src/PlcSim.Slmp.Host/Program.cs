@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using PlcSim.Slmp.Core.Config;
+using PlcSim.Slmp.Core.Diagnostics;
 using PlcSim.Slmp.Core.Control;
 using PlcSim.Slmp.Core.Engine;
 using PlcSim.Slmp.Core.Model;
@@ -9,18 +10,52 @@ using PlcSim.Slmp.Core.Protocol;
 using PlcSim.Slmp.Scripting;
 
 Console.OutputEncoding = Encoding.UTF8;
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+{
+    DiagnosticLog.Default.Write("Unhandled console exception", e.ExceptionObject as Exception);
+    Environment.Exit(1);
+};
 
+if (args.Contains("--help"))
+{
+    Console.WriteLine("PLC Sim: --config <file> --snapshot <file> --profile <id> --port <0..65535> --api-port <1..65535> --verbose --help");
+    return;
+}
+for (var i = 0; i < args.Length; i++)
+{
+    if (args[i] == "--verbose") continue;
+    if (args[i] is not ("--config" or "--snapshot" or "--profile" or "--port" or "--api-port")
+        || i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+    {
+        Console.Error.WriteLine($"引数 = {args[i]}: 不明な引数、または値がありません。--helpで一覧を表示します。");
+        Environment.ExitCode = 1;
+        return;
+    }
+    i++;
+}
 var configPath = ArgValue("--config") ?? FindDefaultConfig();
 var snapshotPath = ArgValue("--snapshot");
 var verbose = args.Contains("--verbose");
 
-var config = configPath is not null ? SimulatorConfig.Load(configPath) : new SimulatorConfig();
-if (ArgValue("--profile") is { } profileArg)
-    config.Plc.Profile = profileArg;
-if (ArgValue("--port") is { } portArg)
-    config.Server.TcpPort = config.Server.UdpPort = int.Parse(portArg, CultureInfo.InvariantCulture);
-if (ArgValue("--api-port") is { } apiPortArg)
-    config.Api.Port = int.Parse(apiPortArg, CultureInfo.InvariantCulture);
+SimulatorConfig config;
+try
+{
+    config = configPath is not null ? SimulatorConfig.Load(configPath) : new SimulatorConfig();
+    if (ArgValue("--profile") is { } profileArg)
+        config.Plc.Profile = profileArg;
+    if (ArgValue("--port") is { } portArg)
+        config.Server.TcpPort = config.Server.UdpPort = SimulatorConfig.ParsePort("--port", portArg, allowZero: true);
+    if (ArgValue("--api-port") is { } apiPortArg)
+        config.Api.Port = SimulatorConfig.ParsePort("--api-port", apiPortArg);
+    config.ValidateAndThrow();
+}
+catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+{
+    DiagnosticLog.Default.Write($"Configuration failed: {configPath}", ex);
+    Console.Error.WriteLine($"設定を読み込めません: {configPath}\n{ex.Message}");
+    Environment.ExitCode = 1;
+    return;
+}
 
 await using var runtime = new SimulatorRuntime(config, configPath);
 var plc = runtime.Plc;
@@ -47,6 +82,7 @@ await runtime.StartAsync();
 if (runtime.LastError is { } startError)
 {
     Console.WriteLine($"起動できません: {startError}");
+    Environment.ExitCode = 1;
     return;
 }
 

@@ -1,7 +1,7 @@
 name: Release
 
 # v で始まるタグ（例: v0.2.0）を push すると、1 ファイル exe（.NET ランタイム同梱）の配布 zip を作り、
-# GitHub Release に添付する。リリースノートは CHANGELOG.md の該当バージョンの節を使う。
+# GitHub Release に添付する。本文は .github/release-notes.md の Changes 欄から作る。
 on:
   push:
     tags:
@@ -15,8 +15,11 @@ jobs:
     outputs:
       release_tag: ${{ steps.publish_release.outputs.release_tag }}
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Verify application version
         shell: pwsh
@@ -28,22 +31,38 @@ jobs:
           $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
           if ($version -cne $env:CHECK_TAG.Substring(1)) { throw 'Release tag must match the application version.' }
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: '3.13'
 
       - name: Build, test and package
         shell: cmd
         run: build.bat
 
-      - name: Set up release tools
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
-        with:
-          python-version: '3.13'
+      - name: Verify ZIP contents
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [IO.Compression.ZipFile]::OpenRead('artifacts/release/PlcSim.Slmp-win-x64.zip')
+          try {
+            foreach ($name in @('PlcSim.Slmp.Gui.exe', 'PlcSim.Slmp.Host.exe', 'config/default.json', 'python/plc_sim.py', 'docs/CONFIGURATION.md')) {
+              if (-not $archive.GetEntry("PlcSim.Slmp/$name")) { throw "Missing ZIP entry: $name" }
+            }
+          } finally { $archive.Dispose() }
+
+      - name: Verify executable versions
+        shell: pwsh
+        env:
+          CHECK_TAG: ${{ github.ref_name }}
+        run: |
+          foreach ($name in @('PlcSim.Slmp.Gui.exe', 'PlcSim.Slmp.Host.exe')) {
+            $info = (Get-Item -LiteralPath "artifacts/release/$name").VersionInfo
+            if ($info.ProductVersion.Split('+')[0] -cne $env:CHECK_TAG.Substring(1)) { throw "Wrong executable version: $name" }
+          }
 
       - name: Prepare ZIP checksum and English release notes
         shell: pwsh

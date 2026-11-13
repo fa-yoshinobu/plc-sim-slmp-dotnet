@@ -54,6 +54,8 @@ public sealed class PlcConfig
 /// <summary>HTTP 制御 API 設定。</summary>
 public sealed class ApiConfig
 {
+    public string? Token { get; set; }
+
     public bool Enabled { get; set; } = true;
 
     public string BindAddress { get; set; } = "127.0.0.1";
@@ -69,7 +71,7 @@ public sealed class GuiConfig
 }
 
 /// <summary>シミュレータ設定ファイル（config/default.json）。</summary>
-public sealed class SimulatorConfig
+public sealed partial class SimulatorConfig
 {
     public static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -111,12 +113,38 @@ public sealed class SimulatorConfig
         return config;
     }
 
-    public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOptions));
+    public void Save(string path)
+    {
+        ValidateAndThrow();
+        var target = Path.GetFullPath(path);
+        var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, "// 設定項目の説明: docs/CONFIGURATION.md\n" + JsonSerializer.Serialize(this, JsonOptions));
+            File.Move(temporary, target, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException($"設定を保存できません: {target}: {ex.Message}", ex);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+                File.Delete(temporary);
+        }
+    }
 
     public string ResolvePath(string path) => Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(BaseDirectory, path));
 
     /// <summary>設定から仮想 PLC を作り、初期値を書き込む。</summary>
     public PlcModel CreatePlc()
+    {
+        var plc = CreatePlcModel();
+        ApplyInitialValues(new PlcController(plc));
+        return plc;
+    }
+
+    private PlcModel CreatePlcModel()
     {
         var profile = CpuProfiles.Get(Plc.Profile).With(Plc.ModelName, Plc.ModelCode, Plc.DevicePoints);
         var settings = new PlcSettings
@@ -129,9 +157,7 @@ public sealed class SimulatorConfig
             Units = Plc.Units.Select(static u => Convert.ToUInt16(u.Trim().TrimStart('U', 'u'), 16)).ToArray(),
             Networks = Plc.Networks.Select(static n => checked((byte)n)).ToArray(),
         };
-        var plc = new PlcModel(profile, settings, Plc.Labels);
-        ApplyInitialValues(new PlcController(plc));
-        return plc;
+        return new PlcModel(profile, settings, Plc.Labels);
     }
 
     public SlmpEngine CreateEngine(PlcModel plc)
@@ -145,23 +171,27 @@ public sealed class SimulatorConfig
     private void ApplyInitialValues(PlcController controller)
     {
         foreach (var item in InitialValues)
-        {
-            var type = item.Type.ToUpperInvariant();
-            var address = controller.Parse(item.Address);
-            if (type == "STRING")
-            {
-                var text = item.Values.FirstOrDefault().GetString() ?? string.Empty;
-                controller.SetString(item.Address, text, (text.Length + 2) / 2, "初期値");
-                continue;
-            }
+            ApplyInitialValue(controller, item);
+    }
 
-            var step = type is "U32" or "S32" or "F32" ? 2u : 1u;
-            for (var i = 0; i < item.Values.Count; i++)
-            {
-                var target = address with { Number = address.Number + ((uint)i * step) };
-                var raw = item.Values[i].ValueKind == JsonValueKind.String ? item.Values[i].GetString()! : item.Values[i].GetRawText();
-                controller.WriteValue(target.ToStringForParse(controller.Plc.Profile), raw, type, "初期値");
-            }
+    private static void ApplyInitialValue(PlcController controller, InitialValue item)
+    {
+        var type = item.Type.ToUpperInvariant();
+        var address = controller.Parse(item.Address);
+        if (type == "STRING")
+        {
+            var text = item.Values.FirstOrDefault().GetString() ?? string.Empty;
+            controller.SetString(item.Address, text, (text.Length + 2) / 2, "初期値");
+            return;
+        }
+
+        var step = type is "U32" or "S32" or "F32" ? 2u : 1u;
+        for (var i = 0; i < item.Values.Count; i++)
+        {
+            var target = address with { Number = address.Number + ((uint)i * step) };
+            var raw = item.Values[i].ValueKind == JsonValueKind.String ? item.Values[i].GetString()! : item.Values[i].GetRawText();
+            if (type == "BIT") raw = raw.ToLowerInvariant();
+            controller.WriteValue(target.ToStringForParse(controller.Plc.Profile), raw, type, "初期値");
         }
     }
 }

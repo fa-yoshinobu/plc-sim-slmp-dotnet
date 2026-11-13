@@ -1,4 +1,7 @@
 using System.Text.Json;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Channels;
 using PlcSim.Slmp.Core.Config;
 using PlcSim.Slmp.Core.Control;
@@ -55,8 +58,15 @@ public sealed class ControlApi : IAsyncDisposable
 
     public string? Url { get; private set; }
 
-    public async Task StartAsync(string bindAddress, int port)
+    public event Action<string>? Diagnostic;
+
+    public async Task StartAsync(string bindAddress, int port, string? token = null)
     {
+        var localHost = string.Equals(bindAddress, "localhost", StringComparison.OrdinalIgnoreCase);
+        if (!localHost && !IPAddress.TryParse(bindAddress, out _))
+            throw new ArgumentException("api.bindAddress must be an IP address or localhost.");
+        if (!localHost && !IPAddress.IsLoopback(IPAddress.Parse(bindAddress)) && string.IsNullOrWhiteSpace(token))
+            throw new ArgumentException("api.token is required for a non-loopback api.bindAddress.");
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.Services.ConfigureHttpJsonOptions(o =>
@@ -64,13 +74,38 @@ public sealed class ControlApi : IAsyncDisposable
             o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             o.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
         });
-        Url = $"http://{bindAddress}:{port}";
+        Url = new UriBuilder("http", bindAddress, port).Uri.GetLeftPart(UriPartial.Authority);
         builder.WebHost.UseUrls(Url);
         var app = builder.Build();
+        app.Use(async (http, next) =>
+        {
+            var host = http.Request.Host;
+            var validHost = host.Port.GetValueOrDefault(80) == http.Connection.LocalPort
+                && (string.Equals(host.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+                    || IPAddress.TryParse(host.Host.Trim('[', ']'), out var ip)
+                    && (IPAddress.IsLoopback(ip) || ip.Equals(http.Connection.LocalIpAddress)));
+            if (!validHost || http.Request.Headers.ContainsKey("Origin"))
+            {
+                Diagnostic?.Invoke("HTTP request rejected: Host or Origin.");
+                http.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+            if (!string.IsNullOrEmpty(token)
+                && !CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(http.Request.Headers.Authorization.ToString()),
+                    Encoding.UTF8.GetBytes("Bearer " + token)))
+            {
+                Diagnostic?.Invoke("HTTP request rejected: token.");
+                http.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+            await next(http);
+        });
         Map(app);
-        SubscribeEvents();
-        await app.StartAsync().ConfigureAwait(false);
+        try { await app.StartAsync().ConfigureAwait(false); }
+        catch { await app.DisposeAsync().ConfigureAwait(false); throw; }
         _app = app;
+        SubscribeEvents();
     }
 
     public async ValueTask DisposeAsync()
@@ -131,6 +166,8 @@ public sealed class ControlApi : IAsyncDisposable
 
         app.MapPut("/api/devices/{address}", (string address, DeviceWriteRequest body, HttpContext http) => Guard(() =>
         {
+            if (body.Values is not { Count: > 0 })
+                return Results.BadRequest(new { error = "values must contain at least one value" });
             var source = SourceOf(http);
             var type = (body.Type ?? "u16").ToUpperInvariant();
             if (type == "STR")
@@ -188,6 +225,8 @@ public sealed class ControlApi : IAsyncDisposable
         app.MapGet("/api/labels/{label}", (string label) => Guard(() => Results.Ok(new { label, hex = Convert.ToHexString(Controller.ReadLabel(label)) })));
         app.MapPut("/api/labels/{label}", (string label, LabelWriteRequest body, HttpContext http) => Guard(() =>
         {
+            if (body.Hex is null && body.Words is not { Count: > 0 })
+                return Results.BadRequest(new { error = "hex or words is required" });
             var data = body.Hex is not null
                 ? Convert.FromHexString(body.Hex)
                 : (body.Words ?? new List<ushort>()).SelectMany(static w => new[] { (byte)w, (byte)(w >> 8) }).ToArray();

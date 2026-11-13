@@ -74,6 +74,7 @@ class Plc:
         self.url = (url or os.environ.get("PLC_SIM_URL") or "http://127.0.0.1:5080").rstrip("/")
         self.source = source or os.environ.get("PLC_SIM_SOURCE") or "Python"
         self.timeout = timeout
+        self._auth_headers = {"Authorization": "Bearer " + os.environ["PLC_SIM_TOKEN"]} if os.environ.get("PLC_SIM_TOKEN") else {}
         self._timers: list[tuple[float, Callable[[], Any]]] = []
         self._write_handlers: list[tuple[str, int, Callable[[WriteEvent], Any]]] = []
         self._state_handlers: list[tuple[str, Callable[[], Any]]] = []
@@ -221,7 +222,7 @@ class Plc:
 
     def events(self) -> Iterable[dict[str, Any]]:
         """Server-Sent Events を 1 件ずつ返す（ブロッキング）。"""
-        request = urllib.request.Request(self.url + "/api/events", headers={"Accept": "text/event-stream"})
+        request = urllib.request.Request(self.url + "/api/events", headers={**self._auth_headers, "Accept": "text/event-stream"})
         with urllib.request.urlopen(request) as response:
             for raw in response:
                 line = raw.decode("utf-8").rstrip("\r\n")
@@ -316,7 +317,7 @@ class Plc:
 
     def _request(self, method: str, path: str, body: Any = None) -> Any:
         data = None if body is None else json.dumps(body).encode("utf-8")
-        request = urllib.request.Request(self.url + path, data=data, method=method)
+        request = urllib.request.Request(self.url + path, data=data, method=method, headers=self._auth_headers)
         request.add_header("X-Source", urllib.parse.quote(self.source))
         if data is not None:
             request.add_header("Content-Type", "application/json")

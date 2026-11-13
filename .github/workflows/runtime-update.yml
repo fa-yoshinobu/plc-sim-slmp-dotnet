@@ -1,0 +1,35 @@
+name: Check bundled runtime
+on:
+  schedule:
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Compare installed patches with bundled runtime
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $pinned = [version]$props.Project.PropertyGroup.BundledRuntimeVersion
+          $runtimes = dotnet --list-runtimes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $outdated = $false
+          foreach ($line in $runtimes) {
+            if ($line -match '^(Microsoft\.(NETCore|AspNetCore|WindowsDesktop)\.App) (10\.0\.\d+) ') {
+              if ([version]$Matches[3] -gt $pinned) {
+                Write-Output "::error::$($Matches[1]) $($Matches[3]) is newer than bundled $pinned. Update BundledRuntimeVersion and publish a new application version."
+                $outdated = $true
+              }
+            }
+          }
+          if ($outdated) { exit 1 }

@@ -6,5 +6,7 @@
     <Company>FA Labo</Company>
     <Authors>FA Labo(fa_yoshinobu)</Authors>
     <Copyright>Copyright (c) 2026 FA Labo</Copyright>
+    <BundledRuntimeVersion>10.0.14</BundledRuntimeVersion>
+    <RuntimeFrameworkVersion Condition="'$(MSBuildProjectName)' == 'PlcSim.Slmp.Gui' Or '$(MSBuildProjectName)' == 'PlcSim.Slmp.Host'">$(BundledRuntimeVersion)</RuntimeFrameworkVersion>
   </PropertyGroup>
 </Project>

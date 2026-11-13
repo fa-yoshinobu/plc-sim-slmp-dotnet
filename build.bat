@@ -61,8 +61,10 @@ rem 設定・Python ライブラリ・サンプルスクリプト（実行ファ
 xcopy /e /i /y /q config "%DIST%\config" >nul || goto :fail
 xcopy /e /i /y /q python "%DIST%\python" >nul || goto :fail
 xcopy /e /i /y /q scripts "%DIST%\scripts" >nul || goto :fail
-copy /y README.md "%DIST%\README.md" >nul
-copy /y LICENSE "%DIST%\LICENSE" >nul
+copy /y README.md "%DIST%\README.md" >nul || goto :fail
+copy /y LICENSE "%DIST%\LICENSE" >nul || goto :fail
+if not exist "%DIST%\docs" mkdir "%DIST%\docs" || goto :fail
+copy /y docs\CONFIGURATION.md "%DIST%\docs\CONFIGURATION.md" >nul || goto :fail
 
 if not "%SINGLE_FILE%"=="1" (
     > "%DIST%\start_gui.bat" (
@@ -76,8 +78,16 @@ if not "%SINGLE_FILE%"=="1" (
     )
 )
 
+for %%F in ("%GUI_DIR%\PlcSim.Slmp.Gui.exe" "%HOST_DIR%\PlcSim.Slmp.Host.exe" "%DIST%\config\default.json" "%DIST%\python\plc_sim.py" "%DIST%\docs\CONFIGURATION.md") do (
+    if not exist "%%~F" (
+        echo [error] Missing distribution file: %%~F
+        goto :fail
+    )
+)
+
 echo === 配布 zip ===
 powershell -NoProfile -File "%~dp0tools\package-release.ps1" -SingleFile %SINGLE_FILE% || goto :fail
+if not exist "%ZIP%" goto :fail
 
 echo.
 echo === 完了 ===

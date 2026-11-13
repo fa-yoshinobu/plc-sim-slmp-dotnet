@@ -14,6 +14,43 @@ namespace PlcSim.Slmp.Tests;
 /// </summary>
 public sealed class RobustnessTests
 {
+    [Fact]
+    public void UdpSessionsAreBoundedAndRetainedSessionsKeepState()
+    {
+        var sessions = new UdpSessionCache();
+        var now = DateTime.UtcNow;
+        for (var i = 0; i < 100000; i++)
+            sessions.Get($"127.0.{i / 60000}.{i % 250 + 1}:{i % 60000 + 1024}", now);
+        Assert.Equal(UdpSessionCache.Capacity, sessions.Count);
+        var session = sessions.Get("127.0.0.1:1000", now);
+        session.PasswordUnlocked = true;
+        Assert.Same(session, sessions.Get(session.Remote, now.AddMinutes(1)));
+        Assert.True(session.PasswordUnlocked);
+        Assert.NotSame(session, sessions.Get(session.Remote, now.AddMinutes(12)));
+        Assert.Equal(1, sessions.Count);
+    }
+
+    [Fact]
+    public async Task MalformedBodyClosesOnlyItsTcpConnectionAndReportsOnce()
+    {
+        await using var server = new SlmpServer(NewEngine(), new SlmpServerOptions { TcpPort = 0, EnableUdp = false });
+        var diagnostics = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        server.Diagnostic += diagnostics.Enqueue;
+        await server.StartAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using (var client = new TcpClient())
+        {
+            await client.ConnectAsync(IPAddress.Loopback, server.TcpPort, timeout.Token);
+            await client.GetStream().WriteAsync(Ascii3E("ZZZZ04010000D*0000000001"), timeout.Token);
+            Assert.Equal(0, await client.GetStream().ReadAsync(new byte[64], timeout.Token));
+        }
+        Assert.Single(diagnostics);
+        using var next = new TcpClient();
+        await next.ConnectAsync(IPAddress.Loopback, server.TcpPort, timeout.Token);
+        await next.GetStream().WriteAsync(Ascii3E("001004010000D*0000000001"), timeout.Token);
+        Assert.True(await next.GetStream().ReadAsync(new byte[64], timeout.Token) > 0);
+    }
+
     private static SlmpEngine NewEngine(LabelDefinitions? labels = null)
         => new(new PlcModel(CpuProfiles.Get(CpuProfiles.IqR), null, labels));
 

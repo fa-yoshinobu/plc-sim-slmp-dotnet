@@ -1,0 +1,19 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.{cs,xaml,bat,ps1}]
+end_of_line = crlf
+
+[*.{md,yml,json}]
+indent_size = 2
+end_of_line = lf
+
+[*.cs]
+csharp_new_line_before_open_brace = all
+csharp_style_namespace_declarations = file_scoped:warning
+dotnet_sort_system_directives_first = true

@@ -78,6 +78,7 @@
                 </TabItem>
             </TabControl>
 
+            <Button Grid.Row="2" Content="ログフォルダーを開く" HorizontalAlignment="Left" Click="OpenLogs" />
             <Button Grid.Row="2" Content="閉じる" Style="{StaticResource PrimaryButton}" Width="100"
                     HorizontalAlignment="Right" IsCancel="True" IsDefault="True" Click="CloseWindow" />
         </Grid>

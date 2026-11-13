@@ -61,6 +61,7 @@ public partial class AboutWindow : FluentWindow
         }
         catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or BadImageFormatException)
         {
+            PlcSim.Slmp.Core.Diagnostics.DiagnosticLog.Default.Write($"Cannot read library version: {name}", ex);
             return "不明";
         }
     }
@@ -79,6 +80,20 @@ public partial class AboutWindow : FluentWindow
     }
 
     private void CloseWindow(object sender, RoutedEventArgs e) => Close();
+
+    private void OpenLogs(object sender, RoutedEventArgs e)
+    {
+        var log = PlcSim.Slmp.Core.Diagnostics.DiagnosticLog.Default;
+        try
+        {
+            Process.Start(new ProcessStartInfo(log.DirectoryPathForShell()) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
+        {
+            log.Write("Could not open log folder", ex);
+            System.Windows.MessageBox.Show(this, ex.Message, "ログフォルダーを開けません", System.Windows.MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
 
     public sealed record LibraryInfo(string Name, string Version, string License, string Purpose);
 }

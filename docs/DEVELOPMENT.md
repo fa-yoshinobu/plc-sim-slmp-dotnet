@@ -11,6 +11,8 @@
 | `src/PlcSim.Slmp.Gui` | GUI（WPF + WPF-UI） |
 | `src/PlcSim.Slmp.Host` | コンソール版 |
 | `tests/PlcSim.Slmp.Tests` | テスト |
+| `tests/PlcSim.Slmp.Gui.Tests` | GUI の ViewModel・編集のテスト |
+| `tests/release` | 配布・検査スクリプトの Python テスト |
 | `assets/icon/make_icons.py` | アイコン生成（Pillow） |
 | `Directory.Build.props` | 製品名・バージョン・開発元 |
 
@@ -41,8 +43,19 @@ build.bat notest       :: テストを省略
 ## リリース
 
 1. `Directory.Build.props` の `Version` と、[`CHANGELOG.md`](../CHANGELOG.md) の `[Unreleased]` をリリースするバージョンに書き換えます。
-2. `v` で始まるタグ（例: `v0.2.0`）を push します。
-3. GitHub Actions（`.github/workflows/release.yml`）がビルド・テストし、zip を GitHub Release に添付します。リリースノートは `CHANGELOG.md` の該当バージョンの節です。
+2. `.github/release-notes.md` の Changes 欄を CHANGELOG に基づいて英語で更新します。
+3. `v` で始まるタグ（例: `v0.2.0`）を push します。タグと製品バージョンの不一致はワークフローで拒否されます。
+4. GitHub Actions（`.github/workflows/release.yml`）がビルド・テスト・ZIPの内容とEXEバージョンの検査を行い、ZIPとSHA-256を公開します。本文は `.github/release-notes.md` を元に生成します。
+5. 公開したEXEのVirusTotal検査が完了し、本文に結果リンクが載ることを確認します。不完全な場合は `Scan release with VirusTotal` にリリースタグを指定して再実行します。
+
+配布・検査は [共通リリース標準](https://github.com/fa-yoshinobu/release_standard) に従います。リリース本文と検査メッセージは英語です。
+
+### ランタイムだけを更新する場合
+
+`Directory.Build.props` の `BundledRuntimeVersion` を更新し、製品Versionもパッチ版を上げます。CHANGELOGと `.github/release-notes.md` に同梱 .NET / ASP.NET Core / Windows Desktop Runtime の更新を記載し、上記と同じビルド・テスト・新規タグのリリース手順で配布します。公開済みZIPは差し替えません。
+`Check bundled runtime` は週1回と手動起動で最新10.0 SDKに含まれるランタイムと固定値を比較し、古い場合は失敗として通知します。GitHubでの実行確認は反映後に行います。
+
+共通標準の [リリース運用](https://github.com/fa-yoshinobu/release_standard/blob/main/WINDOWS_RELEASE_OPERATIONS.md) は、実行スクリプトが各アプリ側にあると定めています。共有スクリプトや再利用ワークフローは提供されていないため、このリポジトリの検査スクリプトと回帰テストを維持します。
 
 ## 画面デザイン
 
