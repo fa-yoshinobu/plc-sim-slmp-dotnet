@@ -15,6 +15,8 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-13
+
 ### Added
 
 - Tooling: mainへのpush・PRのCIと、同梱ランタイムの更新確認ワークフローを追加。
@@ -24,6 +26,7 @@
 
 ### Changed
 
+- Tooling: .NET 8から.NET 10へ移行し、.NET / Windows Desktop / ASP.NET Core 10.0.14を同梱。
 - Scripting: HTTP APIでOrigin・Hostを検査し、ループバック以外の待受にはトークンを必須化。Pythonには環境変数で自動伝達。
 - GUI: メモリビューアの値変換・編集・表示・検索・CSV出力を画面から分離。
 - Tooling: ランタイムの固定値を一元化し、Actionをコミットで固定。ZIP内容とEXEバージョンを検査。
@@ -80,7 +83,8 @@
 
 最初の公開版です。実装済みの機能は [機能一覧](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/blob/main/docs/FEATURES.md) を参照してください。
 
-[Unreleased]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/tag/v0.1.0
