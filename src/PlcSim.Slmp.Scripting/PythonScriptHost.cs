@@ -19,8 +19,13 @@ public enum ScriptStatus
 public sealed class PythonScript
 {
     private readonly PythonScriptHost _host;
-    private Process? _process;
+    private readonly object _sync = new();
+    private readonly object _lifecycle = new();
     private readonly ConcurrentQueue<string> _stderr = new();
+    private Process? _process;
+    private ScriptStatus _status;
+    private string? _error;
+    private DateTime? _startedAt;
 
     internal PythonScript(PythonScriptHost host, string path)
     {
@@ -30,129 +35,123 @@ public sealed class PythonScript
     }
 
     public string Name { get; }
-
     public string Path { get; }
-
-    public ScriptStatus Status { get; private set; }
-
-    /// <summary>異常終了時の終了コードと標準エラーの末尾。</summary>
-    public string? Error { get; private set; }
-
-    public DateTime? StartedAt { get; private set; }
+    public ScriptStatus Status { get { lock (_sync) return _status; } }
+    public string? Error { get { lock (_sync) return _error; } }
+    public DateTime? StartedAt { get { lock (_sync) return _startedAt; } }
 
     public void Start()
     {
-        Stop();
-        Error = null;
-        while (_stderr.TryDequeue(out _))
+        string message;
+        lock (_lifecycle)
         {
-        }
-
-        if (_host.ApiUrl is null)
-        {
-            Fault("HTTP API が無効です。設定で API を有効にしてください。");
-            return;
-        }
-
-        var info = new ProcessStartInfo(_host.PythonExecutable)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-            WorkingDirectory = System.IO.Path.GetDirectoryName(Path)!,
-        };
-        info.ArgumentList.Add("-u");
-        info.ArgumentList.Add(Path);
-        info.Environment["PLC_SIM_URL"] = _host.ApiUrl;
-        info.Environment["PLC_SIM_SOURCE"] = $"Python {Name}";
-        info.Environment["PYTHONIOENCODING"] = "utf-8";
-        if (_host.LibraryDirectory is { } lib)
-        {
-            var existing = Environment.GetEnvironmentVariable("PYTHONPATH");
-            info.Environment["PYTHONPATH"] = string.IsNullOrEmpty(existing) ? lib : lib + System.IO.Path.PathSeparator + existing;
-        }
-
-        try
-        {
-            var process = new Process { StartInfo = info, EnableRaisingEvents = true };
-            process.OutputDataReceived += (_, e) =>
+            StopProcess();
+            lock (_sync) _error = null;
+            while (_stderr.TryDequeue(out _)) { }
+            try
             {
-                if (e.Data is not null)
-                    _host.WriteLog($"[{Name}] {e.Data}");
-            };
-            process.ErrorDataReceived += (_, e) =>
+                if (_host.ApiUrl is null)
+                    throw new InvalidOperationException("HTTP API が無効です。設定で API を有効にしてください。");
+                var info = new ProcessStartInfo(_host.PythonExecutable)
+                {
+                    UseShellExecute = false, CreateNoWindow = true,
+                    RedirectStandardOutput = true, RedirectStandardError = true,
+                    StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(Path)!,
+                };
+                info.ArgumentList.Add("-u");
+                info.ArgumentList.Add(Path);
+                info.Environment["PLC_SIM_URL"] = _host.ApiUrl;
+                info.Environment["PLC_SIM_TOKEN"] = _host.ApiToken ?? string.Empty;
+                info.Environment["PLC_SIM_SOURCE"] = $"Python {Name}";
+                info.Environment["PYTHONIOENCODING"] = "utf-8";
+                if (_host.LibraryDirectory is { } lib)
+                {
+                    var existing = Environment.GetEnvironmentVariable("PYTHONPATH");
+                    info.Environment["PYTHONPATH"] = string.IsNullOrEmpty(existing) ? lib : lib + System.IO.Path.PathSeparator + existing;
+                }
+                var process = new Process { StartInfo = info };
+                process.OutputDataReceived += (_, e) => { if (e.Data is not null) _host.WriteLog($"[{Name}] {e.Data}"); };
+                process.ErrorDataReceived += (_, e) =>
+                {
+                    if (e.Data is null) return;
+                    _stderr.Enqueue(e.Data);
+                    while (_stderr.Count > 20) _stderr.TryDequeue(out string? _);
+                    _host.WriteLog($"[{Name}] ! {e.Data}");
+                };
+                process.Exited += (_, _) => OnExited(process);
+                // Publish before Start: even an immediately exiting script must be observed.
+                lock (_sync)
+                {
+                    _process = process;
+                    _status = ScriptStatus.Running;
+                    _startedAt = DateTime.Now;
+                }
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                process.EnableRaisingEvents = true;
+                message = "開始";
+            }
+            catch (Exception ex)
             {
-                if (e.Data is null)
-                    return;
-                _stderr.Enqueue(e.Data);
-                while (_stderr.Count > 20)
-                    _stderr.TryDequeue(out string? _);
-                _host.WriteLog($"[{Name}] ! {e.Data}");
-            };
-            process.Exited += (_, _) => OnExited(process);
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            _process = process;
-            Status = ScriptStatus.Running;
-            StartedAt = DateTime.Now;
-            _host.WriteLog($"[{Name}] 開始");
-            _host.NotifyChanged(this);
+                StopProcess();
+                lock (_sync)
+                {
+                    _error = $"Python を起動できません（{_host.PythonExecutable}）: {ex.Message}";
+                    _status = ScriptStatus.Faulted;
+                    message = _error;
+                }
+            }
         }
-        catch (Exception ex)
-        {
-            Fault($"Python を起動できません（{_host.PythonExecutable}）: {ex.Message}");
-        }
+        _host.WriteLog($"[{Name}] {message}");
+        _host.NotifyChanged(this);
     }
 
     public void Stop()
     {
-        var process = _process;
-        _process = null;
-        if (process is null)
-            return;
-        try
+        lock (_lifecycle)
         {
-            if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
+            if (!StopProcess()) return;
+            lock (_sync) _status = ScriptStatus.Stopped;
         }
-        catch (InvalidOperationException)
-        {
-        }
-
-        process.Dispose();
-        Status = ScriptStatus.Stopped;
         _host.WriteLog($"[{Name}] 停止");
         _host.NotifyChanged(this);
     }
 
-    private void OnExited(Process process)
+    private bool StopProcess()
     {
-        if (!ReferenceEquals(process, _process))
-            return;
-        process.WaitForExit();
-        var code = process.ExitCode;
-        _process = null;
-        if (code == 0)
+        Process? process;
+        lock (_sync) { process = _process; _process = null; }
+        if (process is null) return false;
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+        catch (InvalidOperationException ex)
         {
-            Status = ScriptStatus.Stopped;
-            _host.WriteLog($"[{Name}] 終了");
-            _host.NotifyChanged(this);
+            PlcSim.Slmp.Core.Diagnostics.DiagnosticLog.Default.Write($"Script already exited: {Name}", ex);
         }
-        else
-        {
-            Fault($"終了コード {code}{Environment.NewLine}{string.Join(Environment.NewLine, _stderr)}");
-        }
+        finally { process.Dispose(); }
+        return true;
     }
 
-    private void Fault(string error)
+    private void OnExited(Process process)
     {
-        Error = error;
-        Status = ScriptStatus.Faulted;
-        _host.WriteLog($"[{Name}] エラーで停止: {error}");
+        lock (_sync)
+            if (!ReferenceEquals(process, _process)) return;
+        // Drain redirected output without holding _sync: output subscribers may read Status.
+        try { process.WaitForExit(); }
+        catch (InvalidOperationException) { return; } // Stop already disposed the process.
+        string message;
+        lock (_sync)
+        {
+            if (!ReferenceEquals(process, _process)) return;
+            var code = process.ExitCode;
+            _process = null;
+            _error = code == 0 ? null : $"終了コード {code}{Environment.NewLine}{string.Join(Environment.NewLine, _stderr)}";
+            _status = code == 0 ? ScriptStatus.Stopped : ScriptStatus.Faulted;
+            message = _error ?? "終了";
+        }
+        process.Dispose();
+        _host.WriteLog($"[{Name}] {message}");
         _host.NotifyChanged(this);
     }
 }
@@ -175,6 +174,8 @@ public sealed class PythonScriptHost : IDisposable
     /// <summary>HTTP API の URL（null なら API 無効）。</summary>
     public string? ApiUrl { get; set; }
 
+    public string? ApiToken { get; set; }
+
     /// <summary>plc_sim.py のあるディレクトリ（PYTHONPATH に追加）。</summary>
     public string? LibraryDirectory { get; }
 
@@ -194,16 +195,17 @@ public sealed class PythonScriptHost : IDisposable
     public PythonScript Add(string path)
     {
         var full = Path.GetFullPath(path);
+        PythonScript script;
         lock (_scripts)
         {
             var existing = _scripts.FirstOrDefault(s => string.Equals(s.Path, full, StringComparison.OrdinalIgnoreCase));
             if (existing is not null)
                 return existing;
-            var script = new PythonScript(this, full);
+            script = new PythonScript(this, full);
             _scripts.Add(script);
-            Changed?.Invoke(script);
-            return script;
         }
+        Changed?.Invoke(script);
+        return script;
     }
 
     public void Remove(PythonScript script)

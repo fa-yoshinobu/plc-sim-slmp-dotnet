@@ -42,7 +42,7 @@ public sealed class SlmpServerOptions
 public sealed class SlmpServer : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, SlmpSession> _sessions = new();
-    private readonly ConcurrentDictionary<string, SlmpSession> _udpSessions = new();
+    private readonly UdpSessionCache _udpSessions = new();
     private readonly ConcurrentDictionary<string, TcpClient> _clients = new();
     private CancellationTokenSource? _cts;
     private TcpListener? _tcp;
@@ -121,9 +121,13 @@ public sealed class SlmpServer : IAsyncDisposable
         {
             await Task.WhenAll(_loops).ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
         {
-            // 停止時の例外は無視する
+            // Cancellation and socket disposal are expected during shutdown.
+        }
+        catch (Exception ex)
+        {
+            Diagnostic?.Invoke($"停止中のエラー: {ex.GetType().Name}: {ex.Message}");
         }
 
         _loops.Clear();
@@ -149,8 +153,9 @@ public sealed class SlmpServer : IAsyncDisposable
             {
                 break;
             }
-            catch (SocketException)
+            catch (SocketException ex)
             {
+                Diagnostic?.Invoke($"TCP 待受: {ex.Message}");
                 continue;
             }
 
@@ -183,31 +188,36 @@ public sealed class SlmpServer : IAsyncDisposable
             {
                 var stream = client.GetStream();
                 var buffer = new byte[8192];
-                var pending = new List<byte>();
+                var pending = new byte[8192];
+                var pendingCount = 0;
                 while (!token.IsCancellationRequested)
                 {
                     var read = await stream.ReadAsync(buffer, token).ConfigureAwait(false);
                     if (read == 0)
                         break;
-                    pending.AddRange(buffer.AsSpan(0, read).ToArray());
+                    if (pendingCount + read > pending.Length)
+                        Array.Resize(ref pending, Math.Max(pending.Length * 2, pendingCount + read));
+                    buffer.AsSpan(0, read).CopyTo(pending.AsSpan(pendingCount));
+                    pendingCount += read;
+                    var offset = 0;
                     while (true)
                     {
                         int length;
                         try
                         {
-                            length = FrameCodec.GetFrameLength(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(pending));
+                            length = FrameCodec.GetFrameLength(pending.AsSpan(offset, pendingCount - offset));
                         }
                         catch (SlmpFrameFormatException ex)
                         {
                             Diagnostic?.Invoke($"{session}: {ex.Message}（受信データを破棄）");
-                            pending.Clear();
+                            pendingCount = offset;
                             break;
                         }
 
-                        if (length == 0 || pending.Count < length)
+                        if (length == 0 || pendingCount - offset < length)
                             break;
-                        var frame = pending.GetRange(0, length).ToArray();
-                        pending.RemoveRange(0, length);
+                        var frame = pending.AsSpan(offset, length).ToArray();
+                        offset += length;
                         var response = ProcessFrame(frame, session);
                         if (response.Disconnect)
                         {
@@ -221,6 +231,8 @@ public sealed class SlmpServer : IAsyncDisposable
                             await Task.Delay(response.DelayMs, token).ConfigureAwait(false);
                         await stream.WriteAsync(response.Frame, token).ConfigureAwait(false);
                     }
+                    pendingCount -= offset;
+                    pending.AsSpan(offset, pendingCount).CopyTo(pending);
                 }
             }
         }
@@ -229,9 +241,15 @@ public sealed class SlmpServer : IAsyncDisposable
         }
         catch (IOException)
         {
+            // A disconnected peer is normal; unexpected parsing failures are logged below.
         }
         catch (SocketException)
         {
+            // A disconnected peer is normal.
+        }
+        catch (Exception ex)
+        {
+            Diagnostic?.Invoke($"{session}: 接続を閉じます {ex.GetType().Name}: {ex.Message}");
         }
         finally
         {
@@ -254,8 +272,9 @@ public sealed class SlmpServer : IAsyncDisposable
             {
                 break;
             }
-            catch (SocketException)
+            catch (SocketException ex)
             {
+                Diagnostic?.Invoke($"UDP 受信: {ex.Message}");
                 continue;
             }
             catch (ObjectDisposedException)
@@ -264,7 +283,7 @@ public sealed class SlmpServer : IAsyncDisposable
             }
 
             var remote = received.RemoteEndPoint.ToString();
-            var session = _udpSessions.GetOrAdd(remote, static r => new SlmpSession(r, "UDP"));
+            var session = _udpSessions.Get(remote, DateTime.UtcNow);
             EngineResult response;
             try
             {
@@ -272,7 +291,7 @@ public sealed class SlmpServer : IAsyncDisposable
                     throw new SlmpFrameFormatException("データグラム長とフレーム長が一致しません");
                 response = ProcessFrame(received.Buffer, session);
             }
-            catch (SlmpFrameFormatException ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 Diagnostic?.Invoke($"{session}: {ex.Message}（破棄）");
                 continue;
@@ -313,9 +332,13 @@ public sealed class SlmpServer : IAsyncDisposable
             {
                 client.Client.Close(0);
             }
-            catch (Exception)
+            catch (ObjectDisposedException)
             {
                 // すでに閉じている接続は無視する
+            }
+            catch (Exception ex)
+            {
+                Diagnostic?.Invoke($"接続を閉じられません: {ex.Message}");
             }
         }
 

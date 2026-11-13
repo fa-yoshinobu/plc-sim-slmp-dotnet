@@ -5,7 +5,7 @@ $release = Join-Path $repo 'artifacts/release'
 $zip = Join-Path $release 'PlcSim.Slmp-win-x64.zip'
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$entries = @('README.md', 'LICENSE')
+$entries = @('README.md', 'LICENSE', 'docs/CONFIGURATION.md')
 # Select source-defined content so stale files in the release folder are never distributed.
 foreach ($directory in @('config', 'python', 'scripts')) {
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $repo $directory) -File -Recurse) {

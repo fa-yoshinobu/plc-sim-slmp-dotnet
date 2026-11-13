@@ -118,6 +118,8 @@ PLC Sim（SLMP）に実装済みの機能です。使い方は [README](../READM
 
 ## Python スクリプト・HTTP API
 
+HTTP API は Origin 付きの要求と Host・ポートの不一致を 403 で拒否します。`api.bindAddress` がループバック以外の場合は `api.token` が必須です。トークン設定時は `Authorization: Bearer <token>` を送信します。Python は `PLC_SIM_TOKEN` 環境変数を使い、GUI・コンソールから起動したスクリプトには自動で設定されます。
+
 - Python ライブラリ `python/plc_sim.py`（標準ライブラリのみ）：値の読書き、周期処理（`@plc.every`）、書込みへの反応（`@plc.on_write`）、CPU 状態変化への反応（`@plc.on_state`）、エラー注入。
 - 起動時にスクリプトを自動実行できます（設定の `scripts`）。
 - HTTP 制御 API（`http://127.0.0.1:5080`）：デバイス・ラベルの読書き、加算・反転、CPU 状態の変更、エラー注入、通信ログ、スナップショット、スクリプト一覧、書込み・状態変化の通知（Server-Sent Events）。

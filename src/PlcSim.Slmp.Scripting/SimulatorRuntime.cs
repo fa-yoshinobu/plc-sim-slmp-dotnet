@@ -1,4 +1,5 @@
 using PlcSim.Slmp.Core.Config;
+using PlcSim.Slmp.Core.Diagnostics;
 using PlcSim.Slmp.Core.Control;
 using PlcSim.Slmp.Core.Engine;
 using PlcSim.Slmp.Core.Model;
@@ -14,12 +15,19 @@ public sealed class SimulatorRuntime : IAsyncDisposable
 {
     public SimulatorRuntime(SimulatorConfig config, string? configPath)
     {
+        config.ValidateAndThrow();
         Config = config;
         ConfigPath = configPath;
         Scripts = new PythonScriptHost(
             config.PythonExecutable,
             ApiUrlOf(config),
             PythonScriptHost.FindLibraryDirectory(config.BaseDirectory, AppContext.BaseDirectory, Directory.GetCurrentDirectory()));
+        Scripts.ApiToken = config.Api.Token;
+        Scripts.Changed += script =>
+        {
+            if (script.Status == ScriptStatus.Faulted)
+                DiagnosticLog.Default.Write($"Script failed: {script.Name}: {script.Error}");
+        };
         Build(null);
     }
 
@@ -64,12 +72,15 @@ public sealed class SimulatorRuntime : IAsyncDisposable
             if (Config.Api.Enabled)
             {
                 Api = new ControlApi(Server, Controller, FrameLog, Scripts);
-                await Api.StartAsync(Config.Api.BindAddress, Config.Api.Port).ConfigureAwait(false);
+                Api.Diagnostic += message => DiagnosticLog.Default.Write(message);
+                await Api.StartAsync(Config.Api.BindAddress, Config.Api.Port, Config.Api.Token).ConfigureAwait(false);
             }
+            DiagnosticLog.Default.Write($"Started: SLMP {Config.Server.BindAddress} TCP={Server.TcpPort} UDP={Server.UdpPort}; API={Api?.Url ?? "disabled"}");
         }
         catch (Exception ex)
         {
             LastError = ex.Message;
+            DiagnosticLog.Default.Write("Startup failed", ex);
             await StopAsync().ConfigureAwait(false);
         }
 
@@ -78,6 +89,7 @@ public sealed class SimulatorRuntime : IAsyncDisposable
 
     public async Task StopAsync()
     {
+        var wasRunning = IsRunning || Api is not null;
         if (Api is not null)
         {
             await Api.DisposeAsync().ConfigureAwait(false);
@@ -85,15 +97,17 @@ public sealed class SimulatorRuntime : IAsyncDisposable
         }
 
         await Server.StopAsync().ConfigureAwait(false);
+        if (wasRunning) DiagnosticLog.Default.Write("Stopped");
         RunningChanged?.Invoke();
     }
 
     /// <summary>設定を差し替えて作り直す。<paramref name="keepMemory"/> ならメモリ内容を引き継ぐ（新しい範囲外は捨てる）。</summary>
     public async Task RebuildAsync(SimulatorConfig config, bool keepMemory = true)
     {
+        config.ValidateAndThrow();
         var wasRunning = IsRunning;
         var apiUrl = ApiUrlOf(config);
-        var scriptsToRestart = Scripts.ApiUrl != apiUrl
+        var scriptsToRestart = Scripts.ApiUrl != apiUrl || Scripts.ApiToken != config.Api.Token
             ? Scripts.Scripts.Where(static s => s.Status == ScriptStatus.Running).ToArray()
             : Array.Empty<PythonScript>();
         foreach (var script in scriptsToRestart)
@@ -104,6 +118,7 @@ public sealed class SimulatorRuntime : IAsyncDisposable
         Config = config;
         Scripts.PythonExecutable = config.PythonExecutable;
         Scripts.ApiUrl = apiUrl;
+        Scripts.ApiToken = config.Api.Token;
         Build(snapshot);
         Rebuilt?.Invoke();
         if (wasRunning)
@@ -140,7 +155,9 @@ public sealed class SimulatorRuntime : IAsyncDisposable
     }
 
     private static string? ApiUrlOf(SimulatorConfig config)
-        => config.Api.Enabled ? $"http://{config.Api.BindAddress}:{config.Api.Port}" : null;
+        => config.Api.Enabled ? new UriBuilder("http",
+            config.Api.BindAddress is "0.0.0.0" or "::" ? "localhost" : config.Api.BindAddress,
+            config.Api.Port).Uri.GetLeftPart(UriPartial.Authority) : null;
 
     private void Build(MemorySnapshot? snapshot)
     {
@@ -151,5 +168,6 @@ public sealed class SimulatorRuntime : IAsyncDisposable
         Access = new AccessLog(Engine);
         Controller = new PlcController(Plc);
         Server = new SlmpServer(Engine, Config.Server);
+        Server.Diagnostic += message => DiagnosticLog.Default.Write(message);
     }
 }

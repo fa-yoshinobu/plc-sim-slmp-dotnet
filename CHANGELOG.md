@@ -15,11 +15,29 @@
 
 ## [Unreleased]
 
+### Added
+
+- Tooling: mainへのpush・PRのCIと、同梱ランタイムの更新確認ワークフローを追加。
+- Server: UDPセッションの上限（1,024件）と無通信期限（10分）、サイズ上限つき診断ログを追加。
+- GUI: バージョン情報にログフォルダーを開くボタンを追加。
+- Tests: 設定検証、HTTP API保護、異常TCP伝文、UDP保持上限、メモリ処理、Python終了競合、ビルド失敗経路の回帰テストを追加。
+
 ### Changed
+
+- Scripting: HTTP APIでOrigin・Hostを検査し、ループバック以外の待受にはトークンを必須化。Pythonには環境変数で自動伝達。
+- GUI: メモリビューアの値変換・編集・表示・検索・CSV出力を画面から分離。
+- Tooling: ランタイムの固定値を一元化し、Actionをコミットで固定。ZIP内容とEXEバージョンを検査。
+- Docs: 設定説明を配布物にも同梱し、リリース手順とダウンロード名を実態に合わせて整理。
 
 - Aligned local and CI release output at `artifacts/release/`, with a fixed-name distribution ZIP and UTF-8/LF SHA-256 checksum.
 
 ### Fixed
+
+- Tooling: ラベル定義の配列・構造体・要素がnullの設定を検証し、コンソールが理由を表示せず終了する問題を修正。
+- GUI: CSV出力でカンマ・引用符・改行を含む文字列を引用し、列や行が崩れる問題を修正。
+- Tooling: 設定値の誤りを項目・値・理由で表示。GUIは既定設定へ復帰し、Hostは終了コード1で終了。設定は一時ファイルから置換する。
+- Server: TCP解析例外を診断へ記録して接続を閉じ、受信バッファの繰返しコピーを削減。
+- Scripting: 不正な書込本文を400で拒否し、Python状態更新と即時終了の競合を修正。
 
 - Reject incomplete VirusTotal responses without a matching API-provided executable SHA-256.
 
@@ -62,6 +80,7 @@
 
 最初の公開版です。実装済みの機能は [機能一覧](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/blob/main/docs/FEATURES.md) を参照してください。
 
-[Unreleased]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/tag/v0.1.0

@@ -35,7 +35,9 @@
   "api": {
     "enabled": true,
     "bindAddress": "127.0.0.1",
-    "port": 5080
+    "port": 5080,
+    // ループバック以外で待ち受ける場合はトークンが必須。
+    "token": null
   },
   "initialValues": [
     { "address": "D0", "type": "U16", "values": [ 1, 2, 3 ] },

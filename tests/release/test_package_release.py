@@ -18,7 +18,7 @@ class PackageReleaseTests(unittest.TestCase):
             (root / "tools").mkdir()
             shutil.copyfile(SCRIPT, root / "tools/package-release.ps1")
             release = root / "artifacts/release"
-            inputs = ["README.md", "LICENSE", "config/default.json", "python/plc_sim.py", "scripts/counter.py"]
+            inputs = ["README.md", "LICENSE", "docs/CONFIGURATION.md", "config/default.json", "python/plc_sim.py", "scripts/counter.py"]
             inputs += (["gui/PlcSim.Slmp.Gui.exe", "gui/library.dll", "host/PlcSim.Slmp.Host.exe", "start_gui.bat", "start_console.bat"] if folder else ["PlcSim.Slmp.Gui.exe", "PlcSim.Slmp.Host.exe"])
             for name in inputs:
                 target = release / name

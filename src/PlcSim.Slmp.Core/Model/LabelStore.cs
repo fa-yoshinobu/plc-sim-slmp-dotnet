@@ -69,8 +69,14 @@ public sealed class LabelDefinitions
     public IReadOnlyList<string> Validate()
     {
         var errors = new List<string>();
+        if (Structs is null)
+            errors.Add("structs = null: 構造体定義のオブジェクトが必要です。");
+        if (Globals is null)
+            errors.Add("globals = null: グローバルラベルの配列が必要です。");
+        if (errors.Count > 0)
+            return errors;
         var structNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, members) in Structs)
+        foreach (var (name, members) in Structs!)
         {
             if (!NamePattern.IsMatch(name))
                 errors.Add($"構造体名 '{name}' に使えない文字があります（先頭は文字か _、以降は文字・数字・_）。");
@@ -78,12 +84,17 @@ public sealed class LabelDefinitions
                 errors.Add($"構造体名 '{name}' は基本データ型と同じ名前です。");
             if (!structNames.Add(name))
                 errors.Add($"構造体名 '{name}' が重複しています。");
+            if (members is null)
+            {
+                errors.Add($"structs.{name} = null: メンバの配列が必要です。");
+                continue;
+            }
             if (members.Count == 0)
                 errors.Add($"構造体 '{name}' にメンバがありません。");
             CheckMembers($"構造体 '{name}' のメンバ", members, errors);
         }
 
-        CheckMembers("グローバルラベル", Globals, errors);
+        CheckMembers("グローバルラベル", Globals!, errors);
         if (errors.Count > 0)
             return errors;
 
@@ -98,7 +109,7 @@ public sealed class LabelDefinitions
             }
         }
 
-        foreach (var global in Globals)
+        foreach (var global in Globals!)
         {
             if (SizeOf(global) > MaxLabelBytes)
                 errors.Add($"グローバルラベル '{global.Name}' が大きすぎます（最大 {MaxLabelBytes / 1024} KB）。");
@@ -110,8 +121,14 @@ public sealed class LabelDefinitions
     private void CheckMembers(string owner, List<LabelMemberDefinition> members, List<string> errors)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var member in members)
+        for (var i = 0; i < members.Count; i++)
         {
+            var member = members[i];
+            if (member is null)
+            {
+                errors.Add($"{owner}[{i}] = null: ラベル定義が必要です。");
+                continue;
+            }
             if (!NamePattern.IsMatch(member.Name ?? string.Empty))
                 errors.Add($"{owner} '{member.Name}' の名前に使えない文字があります（先頭は文字か _、以降は文字・数字・_）。");
             else if (!names.Add(member.Name!))

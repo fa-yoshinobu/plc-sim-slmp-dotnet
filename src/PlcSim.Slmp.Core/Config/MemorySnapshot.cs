@@ -121,9 +121,10 @@ public sealed class MemorySnapshot
                     if (data.Length == slot.Size)
                         plc.Labels.Write(slot, data, "スナップショット");
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     // 定義が変わったラベルは復元しない
+                    PlcSim.Slmp.Core.Diagnostics.DiagnosticLog.Default.Write($"Snapshot label skipped: {path}", ex);
                 }
             }
 

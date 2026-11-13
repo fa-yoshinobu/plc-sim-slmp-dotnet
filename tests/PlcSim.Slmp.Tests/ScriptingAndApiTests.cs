@@ -12,6 +12,109 @@ namespace PlcSim.Slmp.Tests;
 /// <summary>Python スクリプト・HTTP 制御 API・設定ファイル・スナップショット・アクセス記録の確認。</summary>
 public sealed class ScriptingAndApiTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(7)]
+    public async Task ShortLivedPythonScriptsReachFinalState(int exitCode)
+    {
+        var directory = Directory.CreateTempSubdirectory();
+        try
+        {
+            var path = Path.Combine(directory.FullName, "quick.py");
+            await File.WriteAllTextAsync(path, $"import sys\nsys.exit({exitCode})\n");
+            using var host = new PythonScriptHost("python", "http://127.0.0.1:1", null);
+            host.Changed += _ => Assert.True(Task.Run(() => host.Scripts.Count).Wait(TimeSpan.FromSeconds(2)));
+            var script = host.Add(path);
+            for (var i = 0; i < 5; i++)
+            {
+                script.Start();
+                await WaitUntilAsync(() => Task.FromResult(script.Status != ScriptStatus.Running));
+                Assert.Equal(exitCode == 0 ? ScriptStatus.Stopped : ScriptStatus.Faulted, script.Status);
+                if (exitCode != 0) Assert.Contains(exitCode.ToString(), script.Error);
+            }
+        }
+        finally { directory.Delete(true); }
+    }
+
+    [Theory]
+    [InlineData("Origin", "null")]
+    [InlineData("Origin", "https://example.invalid")]
+    [InlineData("Host", "example.invalid:5080")]
+    [InlineData("Host", "127.0.0.1:1")]
+    public async Task BrowserRequestsCannotChangeState(string header, string value)
+    {
+        await using var server = await TestServer.StartAsync();
+        var (api, http, _) = await StartApiAsync(server);
+        await using var a = api;
+        using var h = http;
+        var initialState = server.Plc.State;
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/plc/stop");
+        request.Headers.Add(header, value);
+        using var response = await http.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(initialState, server.Plc.State);
+    }
+
+    [Fact]
+    public async Task NonLoopbackApiRequiresTokenAndAuthenticatesRequests()
+    {
+        await using var server = await TestServer.StartAsync();
+        await using var api = new ControlApi(server.Server, new PlcController(server.Plc), new FrameLogBuffer(server.Engine));
+        var port = FreePort();
+        await Assert.ThrowsAsync<ArgumentException>(() => api.StartAsync("0.0.0.0", port));
+        await api.StartAsync("0.0.0.0", port, "test-token");
+        using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+        Assert.Equal(HttpStatusCode.Forbidden, (await http.GetAsync("/api/status")).StatusCode);
+        http.DefaultRequestHeaders.Authorization = new("Bearer", "wrong");
+        Assert.Equal(HttpStatusCode.Forbidden, (await http.GetAsync("/api/status")).StatusCode);
+        http.DefaultRequestHeaders.Authorization = new("Bearer", "test-token");
+        (await http.GetAsync("/api/status")).EnsureSuccessStatusCode();
+        http.DefaultRequestHeaders.Host = $"localhost:{port}";
+        (await http.PostAsync("/api/plc/stop", null)).EnsureSuccessStatusCode();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("{")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("{\"values\":null}")]
+    [InlineData("{\"values\":[]}")]
+    [InlineData("{\"values\":[{}]}")]
+    public async Task InvalidWriteBodyReturnsBadRequest(string body)
+    {
+        await using var server = await TestServer.StartAsync();
+        var (api, http, _) = await StartApiAsync(server);
+        await using var a = api;
+        using var h = http;
+        using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+        using var response = await http.PutAsync("/api/devices/D0", content);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RuntimePassesTokenToPythonClient()
+    {
+        var config = new SimulatorConfig();
+        config.Server.TcpPort = 0;
+        config.Server.UdpPort = 0;
+        config.Api.Port = FreePort();
+        config.Api.Token = "python-test-token";
+        var directory = Directory.CreateTempSubdirectory();
+        try
+        {
+            var path = Path.Combine(directory.FullName, "token.py");
+            await File.WriteAllTextAsync(path, "from plc_sim import Plc\nPlc().set('D0', 42)\n");
+            await using var runtime = new SimulatorRuntime(config, null);
+            await runtime.StartAsync();
+            Assert.Null(runtime.LastError);
+            var script = runtime.Scripts.Add(path);
+            script.Start();
+            await WaitUntilAsync(() => Task.FromResult(runtime.Controller.GetWord("D0") == 42));
+        }
+        finally { directory.Delete(true); }
+    }
+
     private static SlmpDeviceAddress Dev(string text) => SlmpAddress.Parse(text, SlmpPlcProfile.IqR);
 
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, int timeoutMs = 10000)

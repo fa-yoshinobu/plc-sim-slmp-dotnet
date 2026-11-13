@@ -101,7 +101,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         ApiEnabled = c.Api.Enabled;
         ApiPort = c.Api.Port.ToString(CultureInfo.InvariantCulture);
         PythonExecutable = c.PythonExecutable;
+        // Loading a draft must not apply a theme or modify the runtime configuration.
+#pragma warning disable MVVMTK0034
         _theme = Themes.FirstOrDefault(t => t.Key == c.Gui.Theme) ?? Themes[0];
+#pragma warning restore MVVMTK0034
         OnPropertyChanged(nameof(Theme));
         RefreshInjections();
     }

@@ -22,7 +22,7 @@
 
 ## はじめかた
 
-1. [Releases](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases) から `PlcSim.Slmp-win-x64.zip` をダウンロードし、好きな場所に展開します。
+1. [配布ZIP](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/latest/download/PlcSim.Slmp-win-x64.zip) をダウンロードし、好きな場所に展開します。`PlcSim.Slmp` フォルダーができます。[SHA-256](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/latest/download/PlcSim.Slmp-win-x64.zip.sha256) で照合できます。
 2. `PlcSim.Slmp.Gui.exe` を起動します。起動するとすぐ SLMP サーバーが動き始めます。
 3. 通信したいアプリから次の宛先に接続します。
 
@@ -137,6 +137,10 @@ plc.run_forever()
 
 PowerShell やテストツールから値を操作できます（同じパソコンからのみ、`http://127.0.0.1:5080`）。
 
+API は `Origin` ヘッダー付きの要求と、待受先・ポートに一致しない `Host` を 403 で拒否します。既定のループバック接続では従来の PowerShell の例を使えます。
+別の PC から接続する場合は `config/default.json` の `api.bindAddress` に待受 IP（全 IPv4 は `0.0.0.0`）、`api.token` に十分長いランダムな文字列を設定してください。トークンなしではループバック以外の API は起動しません。設定した場合、すべてのクライアントで `Authorization: Bearer <token>` ヘッダーが必要です。
+Python では環境変数 `PLC_SIM_TOKEN` に同じ値を設定します。GUI・コンソールから起動したスクリプトには自動で渡されます。トークン入りの設定ファイルは共有しないでください。
+
 ```powershell
 Invoke-RestMethod -Method Put http://127.0.0.1:5080/api/devices/D100 -Body '{"values":[42]}' -ContentType application/json
 Invoke-RestMethod "http://127.0.0.1:5080/api/devices/D100?count=4&type=hex"
@@ -185,24 +189,10 @@ GUI 版にも起動引数があります: `--config`、`--theme light|dark`、`-
 
 ソースからのビルド、テスト、配布版の作成、リリース手順は [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) を参照してください。
 
+## 診断ログ
+
+診断ログは `%LOCALAPPDATA%\PlcSim.Slmp\logs\` に保存します。現在分と3世代、各最大1MiBです。起動・停止・エラーを記録し、通信フレームは保存しません。「バージョン情報」の「ログフォルダーを開く」から確認できます。
+
 ## ライセンス
 
 [MIT License](LICENSE)
-
-## Release distribution
-
-The fixed-name ZIP and checksum links below are available for the current release. Older releases retain their original assets.
-
-- [Latest Windows x64 ZIP](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/latest/download/PlcSim.Slmp-win-x64.zip)
-- [ZIP SHA-256 checksum](https://github.com/fa-yoshinobu/plc-sim-slmp-dotnet/releases/latest/download/PlcSim.Slmp-win-x64.zip.sha256)
-- [Changelog](CHANGELOG.md) / [TODO](TODO.md)
-
-Extract the ZIP file and run `PlcSim.Slmp/PlcSim.Slmp.Gui.exe`. Keep the companion folders together. The console executable is `PlcSim.Slmp/PlcSim.Slmp.Host.exe`.
-
-Windows x64. The .NET runtime is included.
-
-Release notes and VirusTotal scan messages are in English. Existing project documents may keep their current language.
-
-Maintainers: update the English Changes section in `.github/release-notes.md` from the relevant CHANGELOG entries before releasing. The release workflow publishes the ZIP and checksum, then scans the actual published executables. Use the `Scan release with VirusTotal` workflow with a release tag to retry an incomplete scan. See the [shared release standard](https://github.com/fa-yoshinobu/release_standard).
-
-ローカルの配布EXEは `artifacts/release/PlcSim.Slmp.Gui.exe` です。同じフォルダーへ配布ZIPとSHA-256を作成します。
